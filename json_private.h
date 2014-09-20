@@ -22,6 +22,7 @@ struct json_stream {
     size_t lineno;
     int error;
     char errmsg[128];
+    enum json_type next;
     struct nesting *nesting;
     struct {
         char *string;

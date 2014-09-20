@@ -96,6 +96,7 @@ static void init(json_stream_t *json)
     json->error = 0;
     json->errmsg[0] = '\0';
     json->ntokens = 0;
+    json->next = 0;
     json->nesting = NULL;
     json->data.string = NULL;
     json->data.string_size = 0;
@@ -327,10 +328,22 @@ read_value(json_stream_t *json, int c)
     }
 }
 
+enum json_type json_peek(json_stream_t *json)
+{
+    enum json_type next = json_next(json);
+    json->next = next;
+    return next;
+}
+
 enum json_type json_next(json_stream_t *json)
 {
     if (json->error)
         return JSON_ERROR;
+    if (json->next != 0) {
+        enum json_type next = json->next;
+        json->next = 0;
+        return next;
+    }
     if (json->ntokens > 0 && json->nesting == NULL)
         return JSON_DONE;
     int c = next(json);
