@@ -145,7 +145,20 @@ static int init_string(json_stream_t *json)
     return 0;
 }
 
-int read_unicode(json_stream_t *json)
+static int encode_utf8(json_stream_t *json, int c)
+{
+    if (c < 0x80)
+        return pushchar(json, c);
+    else if (c < 0x0800)
+        return !((pushchar(json, (c >> 6 & 0x1F) | 0xC0) == 0) &&
+                 (pushchar(json, (c >> 0 & 0x3F) | 0x80) == 0));
+    else
+        return !((pushchar(json, (c >> 12 & 0x0F) | 0xE0) == 0) &&
+                 (pushchar(json, (c >>  6 & 0x3F) | 0x80) == 0) &&
+                 (pushchar(json, (c >>  0 & 0x3F) | 0x80) == 0));
+}
+
+static int read_unicode(json_stream_t *json)
 {
     char code[5];
     for (size_t i = 0; i < sizeof(code) - 1; i++) {
@@ -160,10 +173,8 @@ int read_unicode(json_stream_t *json)
         code[i] = c;
     }
     code[sizeof(code) - 1] = '\0';
-    int value = strtol(code, NULL, 16);
-    // TODO (UTF-8 encode)
-    (void) value;
-    return 0;
+    int c = strtol(code, NULL, 16);
+    return encode_utf8(json, c);
 }
 
 int read_escaped(json_stream_t *json)
@@ -428,7 +439,8 @@ const char *json_get_string(json_stream_t *json, size_t *length)
 
 double json_get_number(json_stream_t *json)
 {
-    return json->data.string == NULL ? 0 : strtod(json->data.string, NULL);
+    char *p = json->data.string;
+    return p == NULL ? 0 : strtod(p, NULL);
 }
 
 const char *json_get_error(json_stream_t *json)
