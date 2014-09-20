@@ -1,5 +1,5 @@
-#ifndef NULLPROGRAM_JSON_PARSER_H
-#define NULLPROGRAM_JSON_PARSER_H
+#ifndef PDJSON_H
+#define PDJSON_H
 
 #include <stdio.h>
 
