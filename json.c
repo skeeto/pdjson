@@ -243,8 +243,12 @@ read_number(json_stream_t *json, int c)
     }
     /* Up to decimal or exponent has been read. */
     c = json->source.peek(&json->source);
-    if (strchr(".eE", c) == NULL)
-        return JSON_NUMBER;
+    if (strchr(".eE", c) == NULL) {
+        if (pushchar(json, '\0') != 0)
+            return JSON_ERROR;
+        else
+            return JSON_NUMBER;
+    }
     if (c == '.') {
         json->source.get(&json->source); // consume .
         if (pushchar(json, c) != 0)
@@ -271,7 +275,10 @@ read_number(json_stream_t *json, int c)
             return JSON_ERROR;
         }
     }
-    return JSON_NUMBER;
+    if (pushchar(json, '\0') != 0)
+        return JSON_ERROR;
+    else
+        return JSON_NUMBER;
 }
 
 /* Returns the next non-whitespace character in the stream. */
