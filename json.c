@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -16,6 +17,8 @@
 
 struct nesting {
     enum json_type type;
+    long count;
+    char meta;
     struct nesting *next;
 };
 
@@ -28,6 +31,8 @@ push(json_stream_t *json, enum json_type type)
         return JSON_ERROR;
     }
     nesting->type = type;
+    nesting->count = 0;
+    nesting->meta = 0;
     nesting->next = json->nesting;
     json->nesting = nesting;
     return type;
@@ -38,7 +43,7 @@ pop(json_stream_t *json, int c, enum json_type expected)
 {
     struct nesting *nesting = json->nesting;
     if (nesting == NULL || nesting->type != expected) {
-        json_error(json, "unexpected character, %c", c);
+        json_error(json, "unexpected byte, '%c'", c);
         free(nesting);
         return JSON_ERROR;
     }
@@ -148,7 +153,7 @@ int read_unicode(json_stream_t *json)
             json_error(json, "%s", "unterminated string literal in unicode");
             return -1;
         } else if (strchr("0123456789abcdefABCDEF", c) == NULL) {
-            json_error(json, "bad escape unicode character, %c", c);
+            json_error(json, "bad escape unicode byte, '%c'", c);
             return -1;
         }
         code[i] = c;
@@ -170,13 +175,13 @@ int read_escaped(json_stream_t *json)
         if (read_unicode(json) != 0)
             return -1;
     } else {
-        const char *codes = "\\bfnrt/";
+        const char *codes = "\\bfnrt/\"";
         char *p = strchr(codes, c);
         if (p != NULL) {
-            if (pushchar(json, "\\\b\f\n\r\t/"[p - codes]) != 0)
+            if (pushchar(json, "\\\b\f\n\r\t/\""[p - codes]) != 0)
                 return -1;
         } else {
-            json_error(json, "bad escaped character, %c", c);
+            json_error(json, "bad escaped byte, '%c'", c);
             return -1;
         }
     }
@@ -229,7 +234,7 @@ read_number(json_stream_t *json, int c)
         if (isdigit(c)) {
             return read_number(json, c);
         } else {
-            json_error(json, "unexpected character, %c", c);
+            json_error(json, "unexpected byte, '%c'", c);
         }
     } else if (strchr("123456789", c) != NULL) {
         if (read_digits(json) != 0)
@@ -261,26 +266,30 @@ read_number(json_stream_t *json, int c)
             if (read_digits(json) != 0)
                 return JSON_ERROR;
         } else {
-            json_error(json, "unexpected character in number, %c", c);
+            json_error(json, "unexpected byte in number, '%c'", c);
             return JSON_ERROR;
         }
     }
     return JSON_NUMBER;
 }
 
-enum json_type json_next(json_stream_t *json)
+/* Returns the next non-whitespace character in the stream. */
+static int next(json_stream_t *json)
 {
-    if (json->ntokens > 0 && json->nesting == NULL)
-        return JSON_DONE;
-    int c;
-    while (isspace(c = json->source.get(&json->source)))
-        if (c == '\n')
-            json->lineno++;
+   int c;
+   while (isspace(c = json->source.get(&json->source)))
+       if (c == '\n')
+           json->lineno++;
+   return c;
+}
+
+static enum json_type
+read_value(json_stream_t *json, int c)
+{
     json->ntokens++;
     switch (c) {
     case EOF:
-        if (json->nesting != NULL)
-            json_error(json, "%s", "unexpected end of data");
+        json_error(json, "%s", "unexpected end of data");
         return JSON_ERROR;
     case '{':
         return push(json, JSON_OBJECT);
@@ -313,9 +322,76 @@ enum json_type json_next(json_stream_t *json)
             return JSON_ERROR;
         return read_number(json, c);
     default:
-        json_error(json, "unexpected character, %c", c);
+        json_error(json, "unexpected byte, '%c'", c);
         return JSON_ERROR;
     }
+}
+
+enum json_type json_next(json_stream_t *json)
+{
+    if (json->error)
+        return JSON_ERROR;
+    if (json->ntokens > 0 && json->nesting == NULL)
+        return JSON_DONE;
+    int c = next(json);
+    if (json->nesting == NULL)
+        return read_value(json, c);
+    if (json->nesting->type == JSON_ARRAY) {
+        if (json->nesting->count == 0) {
+            json->nesting->count++;
+            return read_value(json, c);
+        } else if (c == ',') {
+            json->nesting->count++;
+            return read_value(json, next(json));
+        } else if (c == ']') {
+            return read_value(json, c);
+        } else {
+            json_error(json, "unexpected byte, '%c'", c);
+            return JSON_ERROR;
+        }
+    } else if (json->nesting->type == JSON_OBJECT) {
+        if (json->nesting->count == 0) {
+            /* No property value pairs yet. */
+            enum json_type value = read_value(json, c);
+            if (value != JSON_STRING) {
+                json_error(json, "expected property name or '}', not '%c'", c);
+                return JSON_ERROR;
+            } else {
+                json->nesting->count++;
+                return value;
+            }
+        } else if ((json->nesting->count % 2) == 0) {
+            /* Expecting comma followed by property name. */
+            if (c != ',' && c != '}') {
+                json_error(json, "expected ',' or '}', not '%c'", c);
+                return JSON_ERROR;
+            } else if (c == '}') {
+                /* Or end of object. */
+                return read_value(json, c);
+            } else {
+                enum json_type value = read_value(json, next(json));
+                if (value != JSON_STRING) {
+                    json_error(json, "expected property name, not '%c'", c);
+                    return JSON_ERROR;
+                } else {
+                    json->nesting->count++;
+                    return value;
+                }
+            }
+        } else if ((json->nesting->count % 2) == 1) {
+            /* Expecting colon followed by value. */
+            if (c != ':') {
+                json_error(json,
+                           "expected ':' after property name, not '%c'", c);
+                return JSON_ERROR;
+            } else {
+                json->nesting->count++;
+                return read_value(json, next(json));
+            }
+        }
+    }
+    json_error(json, "%s", "invalid parser state");
+    return JSON_ERROR;
 }
 
 void json_reset(json_stream_t *json)

@@ -2,6 +2,7 @@
 #define NULLPROGRAM_JSON_PARSER_H
 
 #include <stdio.h>
+#include "json_private.h"
 
 enum json_type {
     JSON_ERROR = -1, JSON_DONE,
@@ -9,33 +10,7 @@ enum json_type {
     JSON_STRING, JSON_NUMBER, JSON_TRUE, JSON_FALSE, JSON_NULL
 };
 
-struct json_source {
-    int (*get) (struct json_source *);
-    int (*peek) (struct json_source *);
-    size_t position;
-    union {
-        struct {
-            FILE *stream;
-        } stream;
-        struct {
-            const char *buffer;
-            size_t length;
-        } buffer;
-    } source;
-};
-
-typedef struct json_stream {
-    size_t lineno;
-    int error;
-    char errmsg[128];
-    struct nesting *nesting;
-    struct {
-        char *string;
-        size_t string_fill, string_size;
-    } data;
-    size_t ntokens;
-    struct json_source source;
-} json_stream_t;
+typedef struct json_stream json_stream_t;
 
 void json_open_buffer(json_stream_t *json, const void *buffer, size_t size);
 void json_open_string(json_stream_t *json, const char *string);
