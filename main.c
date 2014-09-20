@@ -93,6 +93,8 @@ int main()
     if (json_get_error(&json)) {
         fprintf(stderr, "%s\n", json_get_error(&json));
         exit(EXIT_FAILURE);
+    } else {
+        printf("\n");
     }
     json_close(&json);
     return 0;
