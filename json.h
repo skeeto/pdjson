@@ -25,7 +25,7 @@ struct json_source {
 };
 
 typedef struct json_stream {
-    long lineno;
+    size_t lineno;
     int error;
     char errmsg[128];
     struct nesting *nesting;
@@ -43,11 +43,13 @@ void json_open_stream(json_stream_t *json, FILE * stream);
 void json_close(json_stream_t *json);
 
 enum json_type json_next(json_stream_t *json);
+void json_reset(json_stream_t *json);
 const char *json_get_string(json_stream_t *json, size_t *length);
 double json_get_number(json_stream_t *json);
 
-const char *json_get_error(json_stream_t *json);
-long json_get_lineno(json_stream_t *json);
+size_t json_get_lineno(json_stream_t *json);
 size_t json_get_position(json_stream_t *json);
+size_t json_get_depth(json_stream_t *json);
+const char *json_get_error(json_stream_t *json);
 
 #endif

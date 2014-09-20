@@ -9,7 +9,8 @@
     if (!json->error) {                                           \
         json->error = 1;                                          \
         snprintf(json->errmsg, sizeof(json->errmsg),              \
-                 "error: %lu: " format,  json->lineno,            \
+                 "error: %lu: " format,                           \
+                 (unsigned long) json->lineno,                    \
                  __VA_ARGS__);                                    \
     }                                                             \
 
@@ -44,6 +45,16 @@ pop(json_stream_t *json, int c, enum json_type expected)
     json->nesting = json->nesting->next;
     free(nesting);
     return expected == JSON_ARRAY ? JSON_ARRAY_END : JSON_OBJECT_END;
+}
+
+static void pop_all(json_stream_t *json)
+{
+    struct nesting *n = json->nesting;
+    while (n) {
+        struct nesting *current = n;
+        n = n->next;
+        free(current);
+    }
 }
 
 static int buffer_peek(struct json_source *source)
@@ -124,6 +135,7 @@ static int init_string(json_stream_t *json)
             return -1;
         }
     }
+    json->data.string[0] = '\0';
     return 0;
 }
 
@@ -306,16 +318,27 @@ enum json_type json_next(json_stream_t *json)
     }
 }
 
+void json_reset(json_stream_t *json)
+{
+    pop_all(json);
+    json->ntokens = 0;
+    json->error = 0;
+    json->errmsg[0] = '\0';
+}
+
 const char *json_get_string(json_stream_t *json, size_t *length)
 {
     if (length != NULL)
         *length = json->data.string_fill;
-    return json->data.string;
+    if (json->data.string == NULL)
+        return "";
+    else
+        return json->data.string;
 }
 
 double json_get_number(json_stream_t *json)
 {
-    return strtod(json->data.string, NULL);
+    return json->data.string == NULL ? 0 : strtod(json->data.string, NULL);
 }
 
 const char *json_get_error(json_stream_t *json)
@@ -323,7 +346,7 @@ const char *json_get_error(json_stream_t *json)
     return json->error ? json->errmsg : NULL;
 }
 
-long json_get_lineno(json_stream_t *json)
+size_t json_get_lineno(json_stream_t *json)
 {
     return json->lineno;
 }
@@ -331,6 +354,14 @@ long json_get_lineno(json_stream_t *json)
 size_t json_get_position(json_stream_t *json)
 {
     return json->source.position;
+}
+
+size_t json_get_depth(json_stream_t *json)
+{
+    size_t depth = 0;
+    for (struct nesting *n = json->nesting; n; n = n->next)
+        depth++;
+    return depth;
 }
 
 void json_open_buffer(json_stream_t *json, const void *buffer, size_t size)
@@ -357,11 +388,6 @@ void json_open_stream(json_stream_t *json, FILE * stream)
 
 void json_close(json_stream_t *json)
 {
-    struct nesting *n = json->nesting;
-    while (n) {
-        struct nesting *current = n;
-        n = n->next;
-        free(current);
-    }
+    pop_all(json);
     free(json->data.string);
 }
