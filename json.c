@@ -374,7 +374,7 @@ enum json_type json_next(json_stream_t *json)
             /* No property value pairs yet. */
             enum json_type value = read_value(json, c);
             if (value != JSON_STRING) {
-                json_error(json, "expected property name or '}', not '%c'", c);
+                json_error(json, "%s", "expected property name or '}'");
                 return JSON_ERROR;
             } else {
                 json->nesting->count++;
@@ -383,7 +383,7 @@ enum json_type json_next(json_stream_t *json)
         } else if ((json->nesting->count % 2) == 0) {
             /* Expecting comma followed by property name. */
             if (c != ',' && c != '}') {
-                json_error(json, "expected ',' or '}', not '%c'", c);
+                json_error(json, "%s", "expected ',' or '}'");
                 return JSON_ERROR;
             } else if (c == '}') {
                 /* Or end of object. */
@@ -391,7 +391,7 @@ enum json_type json_next(json_stream_t *json)
             } else {
                 enum json_type value = read_value(json, next(json));
                 if (value != JSON_STRING) {
-                    json_error(json, "expected property name, not '%c'", c);
+                    json_error(json, "%s", "expected property name");
                     return JSON_ERROR;
                 } else {
                     json->nesting->count++;
@@ -401,8 +401,7 @@ enum json_type json_next(json_stream_t *json)
         } else if ((json->nesting->count % 2) == 1) {
             /* Expecting colon followed by value. */
             if (c != ':') {
-                json_error(json,
-                           "expected ':' after property name, not '%c'", c);
+                json_error(json, "%s", "expected ':' after property name");
                 return JSON_ERROR;
             } else {
                 json->nesting->count++;
