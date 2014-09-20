@@ -303,10 +303,6 @@ read_value(json_stream_t *json, int c)
         return push(json, JSON_OBJECT);
     case '[':
         return push(json, JSON_ARRAY);
-    case '}':
-        return pop(json, c, JSON_OBJECT);
-    case ']':
-        return pop(json, c, JSON_ARRAY);
     case '"':
         return read_string(json);
     case 'n':
@@ -364,7 +360,7 @@ enum json_type json_next(json_stream_t *json)
             json->nesting->count++;
             return read_value(json, next(json));
         } else if (c == ']') {
-            return read_value(json, c);
+            return pop(json, c, JSON_ARRAY);
         } else {
             json_error(json, "unexpected byte, '%c'", c);
             return JSON_ERROR;
@@ -386,8 +382,7 @@ enum json_type json_next(json_stream_t *json)
                 json_error(json, "%s", "expected ',' or '}'");
                 return JSON_ERROR;
             } else if (c == '}') {
-                /* Or end of object. */
-                return read_value(json, c);
+                return pop(json, c, JSON_OBJECT);
             } else {
                 enum json_type value = read_value(json, next(json));
                 if (value != JSON_STRING) {
