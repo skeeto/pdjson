@@ -145,17 +145,26 @@ static int init_string(json_stream_t *json)
     return 0;
 }
 
-static int encode_utf8(json_stream_t *json, int c)
+static int encode_utf8(json_stream_t *json, unsigned c)
 {
     if (c < 0x80)
         return pushchar(json, c);
     else if (c < 0x0800)
         return !((pushchar(json, (c >> 6 & 0x1F) | 0xC0) == 0) &&
                  (pushchar(json, (c >> 0 & 0x3F) | 0x80) == 0));
-    else
+    else if (c < 0x010000)
         return !((pushchar(json, (c >> 12 & 0x0F) | 0xE0) == 0) &&
                  (pushchar(json, (c >>  6 & 0x3F) | 0x80) == 0) &&
                  (pushchar(json, (c >>  0 & 0x3F) | 0x80) == 0));
+    else if (c < 0x110000)
+        return ((pushchar(json, (c >> 18 & 0x07) | 0xF0) == 0) &&
+                (pushchar(json, (c >> 12 & 0x3F) | 0x80) == 0) &&
+                (pushchar(json, (c >> 6  & 0x3F) | 0x80) == 0) &&
+                (pushchar(json, (c >> 0  & 0x3F) | 0x80) == 0));
+    else {
+        json_error(json, "can't encode UTF-8 for %x", c);
+        return -1;
+    }
 }
 
 static int read_unicode(json_stream_t *json)
@@ -173,7 +182,7 @@ static int read_unicode(json_stream_t *json)
         code[i] = c;
     }
     code[sizeof(code) - 1] = '\0';
-    int c = strtol(code, NULL, 16);
+    unsigned c = strtoll(code, NULL, 16);
     return encode_utf8(json, c);
 }
 
