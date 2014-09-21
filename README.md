@@ -41,8 +41,8 @@ void json_reset(json_stream_t *json);
 ~~~
 
 The JSON is parsed as a stream of events (`enum json_type`). The
-stream is one one of these event states, during which data can be
-queried and retrieved.
+stream is in the indicated state, during which data can be queried and
+retrieved.
 
 ~~~c
 enum json_type json_next(json_stream_t *json);
