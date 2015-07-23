@@ -8,9 +8,9 @@ void indent(int n)
         putchar(' ');
 }
 
-void pretty(json_stream_t *json);
+void pretty(json_stream *json);
 
-void pretty_array(json_stream_t *json)
+void pretty_array(json_stream *json)
 {
     printf("[\n");
     int first = 1;
@@ -28,7 +28,7 @@ void pretty_array(json_stream_t *json)
     printf("]");
 }
 
-void pretty_object(json_stream_t *json)
+void pretty_object(json_stream *json)
 {
     printf("{\n");
     int first = 1;
@@ -48,7 +48,7 @@ void pretty_object(json_stream_t *json)
     printf("}");
 }
 
-void pretty(json_stream_t *json)
+void pretty(json_stream *json)
 {
     enum json_type type = json_next(json);
     switch (type) {
@@ -87,7 +87,7 @@ void pretty(json_stream_t *json)
 
 int main()
 {
-    json_stream_t json;
+    json_stream json;
     json_open_stream(&json, stdin);
     pretty(&json);
     if (json_get_error(&json)) {

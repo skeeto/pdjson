@@ -23,7 +23,7 @@ struct nesting {
 };
 
 static enum json_type
-push(json_stream_t *json, enum json_type type)
+push(json_stream *json, enum json_type type)
 {
     struct nesting *nesting = malloc(sizeof(struct nesting));
     if (nesting == NULL) {
@@ -39,7 +39,7 @@ push(json_stream_t *json, enum json_type type)
 }
 
 static enum json_type
-pop(json_stream_t *json, int c, enum json_type expected)
+pop(json_stream *json, int c, enum json_type expected)
 {
     struct nesting *nesting = json->nesting;
     if (nesting == NULL || nesting->type != expected) {
@@ -52,7 +52,7 @@ pop(json_stream_t *json, int c, enum json_type expected)
     return expected == JSON_ARRAY ? JSON_ARRAY_END : JSON_OBJECT_END;
 }
 
-static void pop_all(json_stream_t *json)
+static void pop_all(json_stream *json)
 {
     struct nesting *n = json->nesting;
     while (n) {
@@ -90,7 +90,7 @@ static int stream_peek(struct json_source *source)
     return c;
 }
 
-static void init(json_stream_t *json)
+static void init(json_stream *json)
 {
     json->lineno = 1;
     json->error = 0;
@@ -105,7 +105,7 @@ static void init(json_stream_t *json)
 }
 
 static enum json_type
-is_match(json_stream_t *json, const char *pattern, enum json_type type)
+is_match(json_stream *json, const char *pattern, enum json_type type)
 {
     for (const char *p = pattern; *p; p++)
         if (*p != json->source.get(&json->source))
@@ -113,7 +113,7 @@ is_match(json_stream_t *json, const char *pattern, enum json_type type)
     return type;
 }
 
-static int pushchar(json_stream_t *json, int c)
+static int pushchar(json_stream *json, int c)
 {
     if (json->data.string_fill == json->data.string_size) {
         size_t size = json->data.string_size * 2;
@@ -130,7 +130,7 @@ static int pushchar(json_stream_t *json, int c)
     return 0;
 }
 
-static int init_string(json_stream_t *json)
+static int init_string(json_stream *json)
 {
     json->data.string_fill = 0;
     if (json->data.string == NULL) {
@@ -145,7 +145,7 @@ static int init_string(json_stream_t *json)
     return 0;
 }
 
-static int encode_utf8(json_stream_t *json, unsigned c)
+static int encode_utf8(json_stream *json, unsigned c)
 {
     if (c < 0x80)
         return pushchar(json, c);
@@ -167,7 +167,7 @@ static int encode_utf8(json_stream_t *json, unsigned c)
     }
 }
 
-static int read_unicode(json_stream_t *json)
+static int read_unicode(json_stream *json)
 {
     char code[5];
     for (size_t i = 0; i < sizeof(code) - 1; i++) {
@@ -186,7 +186,7 @@ static int read_unicode(json_stream_t *json)
     return encode_utf8(json, c);
 }
 
-int read_escaped(json_stream_t *json)
+int read_escaped(json_stream *json)
 {
     int c = json->source.get(&json->source);
     if (c == EOF) {
@@ -210,7 +210,7 @@ int read_escaped(json_stream_t *json)
 }
 
 static enum json_type
-read_string(json_stream_t *json)
+read_string(json_stream *json)
 {
     if (init_string(json) != 0)
         return JSON_ERROR;
@@ -236,7 +236,7 @@ read_string(json_stream_t *json)
 }
 
 static int
-read_digits(json_stream_t *json)
+read_digits(json_stream *json)
 {
     while (isdigit(json->source.peek(&json->source))) {
         if (pushchar(json, json->source.get(&json->source)) != 0)
@@ -246,7 +246,7 @@ read_digits(json_stream_t *json)
 }
 
 static enum json_type
-read_number(json_stream_t *json, int c)
+read_number(json_stream *json, int c)
 {
     if (pushchar(json, c) != 0)
         return JSON_ERROR;
@@ -302,7 +302,7 @@ read_number(json_stream_t *json, int c)
 }
 
 /* Returns the next non-whitespace character in the stream. */
-static int next(json_stream_t *json)
+static int next(json_stream *json)
 {
    int c;
    while (isspace(c = json->source.get(&json->source)))
@@ -312,7 +312,7 @@ static int next(json_stream_t *json)
 }
 
 static enum json_type
-read_value(json_stream_t *json, int c)
+read_value(json_stream *json, int c)
 {
     json->ntokens++;
     switch (c) {
@@ -351,14 +351,14 @@ read_value(json_stream_t *json, int c)
     }
 }
 
-enum json_type json_peek(json_stream_t *json)
+enum json_type json_peek(json_stream *json)
 {
     enum json_type next = json_next(json);
     json->next = next;
     return next;
 }
 
-enum json_type json_next(json_stream_t *json)
+enum json_type json_next(json_stream *json)
 {
     if (json->error)
         return JSON_ERROR;
@@ -428,7 +428,7 @@ enum json_type json_next(json_stream_t *json)
     return JSON_ERROR;
 }
 
-void json_reset(json_stream_t *json)
+void json_reset(json_stream *json)
 {
     pop_all(json);
     json->ntokens = 0;
@@ -436,7 +436,7 @@ void json_reset(json_stream_t *json)
     json->errmsg[0] = '\0';
 }
 
-const char *json_get_string(json_stream_t *json, size_t *length)
+const char *json_get_string(json_stream *json, size_t *length)
 {
     if (length != NULL)
         *length = json->data.string_fill;
@@ -446,28 +446,28 @@ const char *json_get_string(json_stream_t *json, size_t *length)
         return json->data.string;
 }
 
-double json_get_number(json_stream_t *json)
+double json_get_number(json_stream *json)
 {
     char *p = json->data.string;
     return p == NULL ? 0 : strtod(p, NULL);
 }
 
-const char *json_get_error(json_stream_t *json)
+const char *json_get_error(json_stream *json)
 {
     return json->error ? json->errmsg : NULL;
 }
 
-size_t json_get_lineno(json_stream_t *json)
+size_t json_get_lineno(json_stream *json)
 {
     return json->lineno;
 }
 
-size_t json_get_position(json_stream_t *json)
+size_t json_get_position(json_stream *json)
 {
     return json->source.position;
 }
 
-size_t json_get_depth(json_stream_t *json)
+size_t json_get_depth(json_stream *json)
 {
     size_t depth = 0;
     for (struct nesting *n = json->nesting; n; n = n->next)
@@ -475,7 +475,7 @@ size_t json_get_depth(json_stream_t *json)
     return depth;
 }
 
-void json_open_buffer(json_stream_t *json, const void *buffer, size_t size)
+void json_open_buffer(json_stream *json, const void *buffer, size_t size)
 {
     init(json);
     json->source.get = buffer_get;
@@ -484,12 +484,12 @@ void json_open_buffer(json_stream_t *json, const void *buffer, size_t size)
     json->source.source.buffer.length = size;
 }
 
-void json_open_string(json_stream_t *json, const char *string)
+void json_open_string(json_stream *json, const char *string)
 {
     json_open_buffer(json, string, strlen(string));
 }
 
-void json_open_stream(json_stream_t *json, FILE * stream)
+void json_open_stream(json_stream *json, FILE * stream)
 {
     init(json);
     json->source.get = stream_get;
@@ -497,7 +497,7 @@ void json_open_stream(json_stream_t *json, FILE * stream)
     json->source.source.stream.stream = stream;
 }
 
-void json_close(json_stream_t *json)
+void json_close(json_stream *json)
 {
     pop_all(json);
     free(json->data.string);
