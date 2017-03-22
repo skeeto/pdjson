@@ -1,6 +1,7 @@
 #ifndef PDJSON_PRIVATE_H
 #define PDJSON_PRIVATE_H
 
+#include <stdbool.h>
 #include <stdio.h>
 
 struct json_source {
@@ -30,7 +31,8 @@ struct json_stream {
     size_t stack_top;
     size_t stack_size;
     enum json_type next;
-    int error;
+    int error : 31;
+    bool strict : 1;
 
     struct {
         char *string;

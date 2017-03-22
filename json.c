@@ -93,6 +93,7 @@ static void init(json_stream *json)
     json->errmsg[0] = '\0';
     json->ntokens = 0;
     json->next = 0;
+    json->strict = 0;
 
     json->stack = NULL;
     json->stack_top = -1;
@@ -276,6 +277,9 @@ static int read_unicode(json_stream *json)
         }
 
         cp = ((h - 0xd800) * 0x400) + ((l - 0xdc00) + 0x10000);
+    } else if (cp >= 0xdc00 && cp <= 0xdfff) {
+            json_error(json, "dangling surrogate \\u%04lx", cp);
+            return -1;
     }
 
     return encode_utf8(json, cp);
@@ -291,16 +295,37 @@ int read_escaped(json_stream *json)
         if (read_unicode(json) != 0)
             return -1;
     } else {
-        const char *codes = "\\bfnrt/\"";
-        char *p = strchr(codes, c);
-        if (p != NULL) {
-            if (pushchar(json, "\\\b\f\n\r\t/\""[p - codes]) != 0)
-                return -1;
-        } else {
+        switch (c) {
+        case '\\':
+        case 'b':
+        case 'f':
+        case 'n':
+        case 'r':
+        case 't':
+        case '/':
+        case '"':
+            {
+                const char *codes = "\\bfnrt/\"";
+                char *p = strchr(codes, c);
+                if (pushchar(json, "\\\b\f\n\r\t/\""[p - codes]) != 0)
+                    return -1;
+            }
+            break;
+        default:
             json_error(json, "bad escaped byte, '%c'", c);
             return -1;
         }
     }
+    return 0;
+}
+
+static int
+char_needs_escaping(int c)
+{
+    if (c < 0x20 || c == 0x22 || c == 0x5c) {
+        return 1;
+    }
+
     return 0;
 }
 
@@ -323,6 +348,11 @@ read_string(json_stream *json)
             if (read_escaped(json) != 0)
                 return JSON_ERROR;
         } else {
+            if (char_needs_escaping(c)) {
+                json_error(json, "%s", "unescaped control character in string");
+                return JSON_ERROR;
+            }
+
             if (pushchar(json, c) != 0)
                 return JSON_ERROR;
         }
@@ -333,10 +363,18 @@ read_string(json_stream *json)
 static int
 read_digits(json_stream *json)
 {
+    unsigned nread = 0;
     while (isdigit(json->source.peek(&json->source))) {
         if (pushchar(json, json->source.get(&json->source)) != 0)
             return -1;
+
+        nread++;
     }
+
+    if (json->strict && nread == 0) {
+        return -1;
+    }
+
     return 0;
 }
 
@@ -353,8 +391,11 @@ read_number(json_stream *json, int c)
             json_error(json, "unexpected byte, '%c'", c);
         }
     } else if (strchr("123456789", c) != NULL) {
-        if (read_digits(json) != 0)
-            return JSON_ERROR;
+        c = json->source.peek(&json->source);
+        if (isdigit(c)) {
+            if (read_digits(json) != 0)
+                return JSON_ERROR;
+        }
     }
     /* Up to decimal or exponent has been read. */
     c = json->source.peek(&json->source);
@@ -382,6 +423,8 @@ read_number(json_stream *json, int c)
             json->source.get(&json->source); // consume
             if (pushchar(json, c) != 0)
                 return JSON_ERROR;
+            if (read_digits(json) != 0)
+                return JSON_ERROR;
         } else if (isdigit(c)) {
             if (read_digits(json) != 0)
                 return JSON_ERROR;
@@ -396,11 +439,25 @@ read_number(json_stream *json, int c)
         return JSON_NUMBER;
 }
 
+static int
+json_isspace(int c)
+{
+    switch (c) {
+    case 0x09:
+    case 0x0a:
+    case 0x0d:
+    case 0x20:
+        return 1;
+    }
+
+    return 0;
+}
+
 /* Returns the next non-whitespace character in the stream. */
 static int next(json_stream *json)
 {
    int c;
-   while (isspace(c = json->source.get(&json->source)))
+   while (json_isspace(c = json->source.get(&json->source)))
        if (c == '\n')
            json->lineno++;
    return c;
@@ -462,13 +519,30 @@ enum json_type json_next(json_stream *json)
         json->next = 0;
         return next;
     }
-    if (json->ntokens > 0 && json->stack_top == (size_t)-1)
+    if (json->ntokens > 0 && json->stack_top == (size_t)-1) {
+        int c;
+
+        do {
+            c = json->source.peek(&json->source);
+            if (json_isspace(c)) {
+                c = json->source.get(&json->source);
+            }
+        } while (json_isspace(c));
+
+        if (json->strict && c != EOF) {
+            return JSON_ERROR;
+        }
+
         return JSON_DONE;
+    }
     int c = next(json);
     if (json->stack == NULL)
         return read_value(json, c);
     if (json->stack[json->stack_top].type == JSON_ARRAY) {
         if (json->stack[json->stack_top].count == 0) {
+            if (c == ']') {
+                return pop(json, c, JSON_ARRAY);
+            }
             json->stack[json->stack_top].count++;
             return read_value(json, c);
         } else if (c == ',') {
@@ -482,6 +556,10 @@ enum json_type json_next(json_stream *json)
         }
     } else if (json->stack[json->stack_top].type == JSON_OBJECT) {
         if (json->stack[json->stack_top].count == 0) {
+            if (c == '}') {
+                return pop(json, c, JSON_OBJECT);
+            }
+
             /* No property value pairs yet. */
             enum json_type value = read_value(json, c);
             if (value != JSON_STRING) {
@@ -592,6 +670,11 @@ void json_open_stream(json_stream *json, FILE * stream)
 void json_set_allocator(json_stream *json, json_allocator *a)
 {
     json->alloc = *a;
+}
+
+void json_set_strict(json_stream *json, bool strict)
+{
+    json->strict = strict;
 }
 
 void json_close(json_stream *json)
