@@ -145,28 +145,28 @@ static int init_string(json_stream *json)
     return 0;
 }
 
-static int encode_utf8(json_stream *json, uint_least32_t c)
+static int encode_utf8(json_stream *json, unsigned long c)
 {
-    if (c < 0x80) {
+    if (c < 0x80UL) {
         return pushchar(json, c);
-    } else if (c < 0x0800) {
+    } else if (c < 0x0800UL) {
         return !((pushchar(json, (c >> 6 & 0x1F) | 0xC0) == 0) &&
                  (pushchar(json, (c >> 0 & 0x3F) | 0x80) == 0));
-    } else if (c < 0x010000) {
+    } else if (c < 0x010000UL) {
         if (c >= 0xd800 && c <= 0xdfff) {
-            json_error(json, "invalid codepoint %06x", c);
+            json_error(json, "invalid codepoint %06lx", c);
             return -1;
         }
         return !((pushchar(json, (c >> 12 & 0x0F) | 0xE0) == 0) &&
                  (pushchar(json, (c >>  6 & 0x3F) | 0x80) == 0) &&
                  (pushchar(json, (c >>  0 & 0x3F) | 0x80) == 0));
-    } else if (c < 0x110000) {
+    } else if (c < 0x110000UL) {
         return !((pushchar(json, (c >> 18 & 0x07) | 0xF0) == 0) &&
                 (pushchar(json, (c >> 12 & 0x3F) | 0x80) == 0) &&
                 (pushchar(json, (c >> 6  & 0x3F) | 0x80) == 0) &&
                 (pushchar(json, (c >> 0  & 0x3F) | 0x80) == 0));
     } else {
-        json_error(json, "can't encode UTF-8 for %06x", c);
+        json_error(json, "can't encode UTF-8 for %06lx", c);
         return -1;
     }
 }
@@ -201,10 +201,10 @@ static int hexchar(int c)
     }
 }
 
-static int_least32_t
+static long
 read_unicode_cp(json_stream *json)
 {
-    int_least32_t cp = 0;
+    long cp = 0;
     int shift = 12;
 
     for (size_t i = 0; i < 4; i++) {
@@ -229,7 +229,7 @@ read_unicode_cp(json_stream *json)
 
 static int read_unicode(json_stream *json)
 {
-    int_least32_t cp, h, l;
+    long cp, h, l;
 
     if ((cp = read_unicode_cp(json)) == -1) {
         return -1;
@@ -266,7 +266,7 @@ static int read_unicode(json_stream *json)
         }
 
         if (l < 0xdc00 || l > 0xdfff) {
-            json_error(json, "invalid surrogate pair continuation \\u%04x out "
+            json_error(json, "invalid surrogate pair continuation \\u%04lx out "
                              "of range (dc00-dfff)", l);
             return -1;
         }
