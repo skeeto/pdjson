@@ -462,7 +462,7 @@ enum json_type json_next(json_stream *json)
         json->next = 0;
         return next;
     }
-    if (json->ntokens > 0 && json->stack_top == -1)
+    if (json->ntokens > 0 && json->stack_top == (size_t)-1)
         return JSON_DONE;
     int c = next(json);
     if (json->stack == NULL)

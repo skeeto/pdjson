@@ -27,8 +27,8 @@ struct json_stream {
     size_t lineno;
 
     struct json_stack *stack;
-    int_least32_t stack_top;
-    int_least32_t stack_size;
+    size_t stack_top;
+    size_t stack_size;
     enum json_type next;
     int error;
 
