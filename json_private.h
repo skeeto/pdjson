@@ -18,18 +18,31 @@ struct json_source {
     } source;
 };
 
+struct json_stack {
+    enum json_type type;
+    long count;
+};
+
 struct json_stream {
     size_t lineno;
-    int error;
-    char errmsg[128];
+
+    struct json_stack *stack;
+    int_least32_t stack_top;
+    int_least32_t stack_size;
     enum json_type next;
-    struct nesting *nesting;
+    int error;
+
     struct {
         char *string;
-        size_t string_fill, string_size;
+        size_t string_fill;
+        size_t string_size;
     } data;
+
     size_t ntokens;
+
     struct json_source source;
+    struct json_allocator alloc;
+    char errmsg[128];
 };
 
 #endif

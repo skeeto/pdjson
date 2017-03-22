@@ -15,51 +15,47 @@
                  __VA_ARGS__);                                    \
     }                                                             \
 
-struct nesting {
-    enum json_type type;
-    long count;
-    char meta;
-    struct nesting *next;
-};
+#define STACK_INC 4
 
 static enum json_type
 push(json_stream *json, enum json_type type)
 {
-    struct nesting *nesting = malloc(sizeof(struct nesting));
-    if (nesting == NULL) {
-        json_error(json, "%s", strerror(errno));
-        return JSON_ERROR;
+    json->stack_top++;
+
+    if (json->stack_top >= json->stack_size) {
+        struct json_stack *stack;
+        stack = json->alloc.realloc(json->stack,
+                (json->stack_size + STACK_INC) * sizeof(*json->stack));
+        if (stack == NULL) {
+            json_error(json, "%s", strerror(errno));
+            return JSON_ERROR;
+        }
+
+        json->stack_size += STACK_INC;
+        json->stack = stack;
     }
-    nesting->type = type;
-    nesting->count = 0;
-    nesting->meta = 0;
-    nesting->next = json->nesting;
-    json->nesting = nesting;
+
+    json->stack[json->stack_top].type = type;
+    json->stack[json->stack_top].count = 0;
+
     return type;
 }
 
 static enum json_type
 pop(json_stream *json, int c, enum json_type expected)
 {
-    struct nesting *nesting = json->nesting;
-    if (nesting == NULL || nesting->type != expected) {
+    if (json->stack == NULL || json->stack[json->stack_top].type != expected) {
         json_error(json, "unexpected byte, '%c'", c);
-        free(nesting);
+        json->alloc.free(json->stack);
         return JSON_ERROR;
     }
-    json->nesting = json->nesting->next;
-    free(nesting);
+    json->stack_top--;
     return expected == JSON_ARRAY ? JSON_ARRAY_END : JSON_OBJECT_END;
 }
 
 static void pop_all(json_stream *json)
 {
-    struct nesting *n = json->nesting;
-    while (n) {
-        struct nesting *current = n;
-        n = n->next;
-        free(current);
-    }
+    json->alloc.free(json->stack);
 }
 
 static int buffer_peek(struct json_source *source)
@@ -97,11 +93,19 @@ static void init(json_stream *json)
     json->errmsg[0] = '\0';
     json->ntokens = 0;
     json->next = 0;
-    json->nesting = NULL;
+
+    json->stack = NULL;
+    json->stack_top = -1;
+    json->stack_size = 0;
+
     json->data.string = NULL;
     json->data.string_size = 0;
     json->data.string_fill = 0;
     json->source.position = 0;
+
+    json->alloc.malloc = malloc;
+    json->alloc.realloc = realloc;
+    json->alloc.free = free;
 }
 
 static enum json_type
@@ -117,7 +121,7 @@ static int pushchar(json_stream *json, int c)
 {
     if (json->data.string_fill == json->data.string_size) {
         size_t size = json->data.string_size * 2;
-        char *buffer = realloc(json->data.string, size);
+        char *buffer = json->alloc.realloc(json->data.string, size);
         if (buffer == NULL) {
             json_error(json, "%s", strerror(errno));
             return -1;
@@ -135,7 +139,7 @@ static int init_string(json_stream *json)
     json->data.string_fill = 0;
     if (json->data.string == NULL) {
         json->data.string_size = 1024;
-        json->data.string = malloc(json->data.string_size);
+        json->data.string = json->alloc.malloc(json->data.string_size);
         if (json->data.string == NULL) {
             json_error(json, "%s", strerror(errno));
             return -1;
@@ -367,17 +371,17 @@ enum json_type json_next(json_stream *json)
         json->next = 0;
         return next;
     }
-    if (json->ntokens > 0 && json->nesting == NULL)
+    if (json->ntokens > 0 && json->stack_top == -1)
         return JSON_DONE;
     int c = next(json);
-    if (json->nesting == NULL)
+    if (json->stack == NULL)
         return read_value(json, c);
-    if (json->nesting->type == JSON_ARRAY) {
-        if (json->nesting->count == 0) {
-            json->nesting->count++;
+    if (json->stack[json->stack_top].type == JSON_ARRAY) {
+        if (json->stack[json->stack_top].count == 0) {
+            json->stack[json->stack_top].count++;
             return read_value(json, c);
         } else if (c == ',') {
-            json->nesting->count++;
+            json->stack[json->stack_top].count++;
             return read_value(json, next(json));
         } else if (c == ']') {
             return pop(json, c, JSON_ARRAY);
@@ -385,18 +389,18 @@ enum json_type json_next(json_stream *json)
             json_error(json, "unexpected byte, '%c'", c);
             return JSON_ERROR;
         }
-    } else if (json->nesting->type == JSON_OBJECT) {
-        if (json->nesting->count == 0) {
+    } else if (json->stack[json->stack_top].type == JSON_OBJECT) {
+        if (json->stack[json->stack_top].count == 0) {
             /* No property value pairs yet. */
             enum json_type value = read_value(json, c);
             if (value != JSON_STRING) {
                 json_error(json, "%s", "expected property name or '}'");
                 return JSON_ERROR;
             } else {
-                json->nesting->count++;
+                json->stack[json->stack_top].count++;
                 return value;
             }
-        } else if ((json->nesting->count % 2) == 0) {
+        } else if ((json->stack[json->stack_top].count % 2) == 0) {
             /* Expecting comma followed by property name. */
             if (c != ',' && c != '}') {
                 json_error(json, "%s", "expected ',' or '}'");
@@ -409,17 +413,17 @@ enum json_type json_next(json_stream *json)
                     json_error(json, "%s", "expected property name");
                     return JSON_ERROR;
                 } else {
-                    json->nesting->count++;
+                    json->stack[json->stack_top].count++;
                     return value;
                 }
             }
-        } else if ((json->nesting->count % 2) == 1) {
+        } else if ((json->stack[json->stack_top].count % 2) == 1) {
             /* Expecting colon followed by value. */
             if (c != ':') {
                 json_error(json, "%s", "expected ':' after property name");
                 return JSON_ERROR;
             } else {
-                json->nesting->count++;
+                json->stack[json->stack_top].count++;
                 return read_value(json, next(json));
             }
         }
@@ -469,10 +473,7 @@ size_t json_get_position(json_stream *json)
 
 size_t json_get_depth(json_stream *json)
 {
-    size_t depth = 0;
-    for (struct nesting *n = json->nesting; n; n = n->next)
-        depth++;
-    return depth;
+    return json->stack_top + 1;
 }
 
 void json_open_buffer(json_stream *json, const void *buffer, size_t size)
@@ -497,8 +498,13 @@ void json_open_stream(json_stream *json, FILE * stream)
     json->source.source.stream.stream = stream;
 }
 
+void json_set_allocator(json_stream *json, json_allocator *a)
+{
+    json->alloc = *a;
+}
+
 void json_close(json_stream *json)
 {
     pop_all(json);
-    free(json->data.string);
+    json->alloc.free(json->data.string);
 }
