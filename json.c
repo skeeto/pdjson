@@ -145,45 +145,136 @@ static int init_string(json_stream *json)
     return 0;
 }
 
-static int encode_utf8(json_stream *json, unsigned c)
+static int encode_utf8(json_stream *json, uint_least32_t c)
 {
-    if (c < 0x80)
+    if (c < 0x80) {
         return pushchar(json, c);
-    else if (c < 0x0800)
+    } else if (c < 0x0800) {
         return !((pushchar(json, (c >> 6 & 0x1F) | 0xC0) == 0) &&
                  (pushchar(json, (c >> 0 & 0x3F) | 0x80) == 0));
-    else if (c < 0x010000)
+    } else if (c < 0x010000) {
+        if (c >= 0xd800 && c <= 0xdfff) {
+            json_error(json, "invalid codepoint %06x", c);
+            return -1;
+        }
         return !((pushchar(json, (c >> 12 & 0x0F) | 0xE0) == 0) &&
                  (pushchar(json, (c >>  6 & 0x3F) | 0x80) == 0) &&
                  (pushchar(json, (c >>  0 & 0x3F) | 0x80) == 0));
-    else if (c < 0x110000)
-        return ((pushchar(json, (c >> 18 & 0x07) | 0xF0) == 0) &&
+    } else if (c < 0x110000) {
+        return !((pushchar(json, (c >> 18 & 0x07) | 0xF0) == 0) &&
                 (pushchar(json, (c >> 12 & 0x3F) | 0x80) == 0) &&
                 (pushchar(json, (c >> 6  & 0x3F) | 0x80) == 0) &&
                 (pushchar(json, (c >> 0  & 0x3F) | 0x80) == 0));
-    else {
-        json_error(json, "can't encode UTF-8 for %x", c);
+    } else {
+        json_error(json, "can't encode UTF-8 for %06x", c);
         return -1;
     }
 }
 
+static int hexchar(int c)
+{
+    switch (c) {
+    case '0': return 0;
+    case '1': return 1;
+    case '2': return 2;
+    case '3': return 3;
+    case '4': return 4;
+    case '5': return 5;
+    case '6': return 6;
+    case '7': return 7;
+    case '8': return 8;
+    case '9': return 9;
+    case 'a':
+    case 'A': return 10;
+    case 'b':
+    case 'B': return 11;
+    case 'c':
+    case 'C': return 12;
+    case 'd':
+    case 'D': return 13;
+    case 'e':
+    case 'E': return 14;
+    case 'f':
+    case 'F': return 15;
+    default:
+        return -1;
+    }
+}
+
+static int_least32_t
+read_unicode_cp(json_stream *json)
+{
+    int_least32_t cp = 0;
+    int shift = 12;
+
+    for (size_t i = 0; i < 4; i++) {
+        int c = json->source.get(&json->source);
+        int hc;
+
+        if (c == EOF) {
+            json_error(json, "%s", "unterminated string literal in unicode");
+            return -1;
+        } else if ((hc = hexchar(c)) == -1) {
+            json_error(json, "bad escape unicode byte, '%c'", c);
+            return -1;
+        }
+
+        cp += hc * (1 << shift);
+        shift -= 4;
+    }
+
+
+    return cp;
+}
+
 static int read_unicode(json_stream *json)
 {
-    char code[5];
-    for (size_t i = 0; i < sizeof(code) - 1; i++) {
+    int_least32_t cp, h, l;
+
+    if ((cp = read_unicode_cp(json)) == -1) {
+        return -1;
+    }
+
+    if (cp >= 0xd800 && cp <= 0xdbff) {
+        /* This is the high portion of a surrogate pair; we need to read the
+         * lower portion to get the codepoint
+         */
+        h = cp;
+
         int c = json->source.get(&json->source);
         if (c == EOF) {
             json_error(json, "%s", "unterminated string literal in unicode");
             return -1;
-        } else if (strchr("0123456789abcdefABCDEF", c) == NULL) {
-            json_error(json, "bad escape unicode byte, '%c'", c);
+        } else if (c != '\\') {
+            json_error(json, "invalid continuation for surrogate pair: '%c', "
+                             "expected '\\'", c);
             return -1;
         }
-        code[i] = c;
+
+        c = json->source.get(&json->source);
+        if (c == EOF) {
+            json_error(json, "%s", "unterminated string literal in unicode");
+            return -1;
+        } else if (c != 'u') {
+            json_error(json, "invalid continuation for surrogate pair: '%c', "
+                             "expected 'u'", c);
+            return -1;
+        }
+
+        if ((l = read_unicode_cp(json)) == -1) {
+            return -1;
+        }
+
+        if (l < 0xdc00 || l > 0xdfff) {
+            json_error(json, "invalid surrogate pair continuation \\u%04x out "
+                             "of range (dc00-dfff)", l);
+            return -1;
+        }
+
+        cp = ((h - 0xd800) * 0x400) + ((l - 0xdc00) + 0x10000);
     }
-    code[sizeof(code) - 1] = '\0';
-    unsigned c = strtoll(code, NULL, 16);
-    return encode_utf8(json, c);
+
+    return encode_utf8(json, cp);
 }
 
 int read_escaped(json_stream *json)
