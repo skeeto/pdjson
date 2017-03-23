@@ -16,6 +16,11 @@ library are UTF-8 with possible nul characters in the middle, which is
 why the size output parameter is important. Encoded characters
 (`\uxxxx`) are decoded and re-encoded into UTF-8.
 
+One exception to this rule is made to support a "streaming" mode. When
+a JSON "stream" contains multiple JSON objects (optionally separated
+by JSON whitespace), the default behavior of the parser is to allow
+the stream to be "reset," and to continue parsing the stream.
+
 The library is usable and nearly complete, but needs polish.
 
 ## API Overview
@@ -32,12 +37,36 @@ void json_open_buffer(json_stream *json, const void *buffer, size_t size);
 void json_close(json_stream *json);
 ~~~
 
+After opening a stream, custom allocator callbacks can be specified,
+in case allocations should not come from a system-supplied malloc.
+(When no custom allocator is specified, the system allocator is used.)
+
+~~~c
+struct json_allocator {
+    void *(*malloc)(size_t);
+    void *(*realloc)(void *, size_t);
+    void (*free)(void *);
+};
+
+
+void json_set_allocator(json_stream *json, json_allocator *a);
+~~~
+
 By default only one value is read from the stream. The parser can be
 reset to read more objects. The overall line number and position are
 preserved.
 
 ~~~c
 void json_reset(json_stream *json);
+~~~
+
+If strict conformance to the JSON standard is desired, streaming mode
+can be disabled by calling `json_set_streaming` and setting the mode to
+`false`. This will cause any non-whitespace trailing data to trigger a
+parse error.
+
+~~~c
+void json_set_streaming(json_stream *json, bool mode);
 ~~~
 
 The JSON is parsed as a stream of events (`enum json_type`). The
