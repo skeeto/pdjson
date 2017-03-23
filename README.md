@@ -14,7 +14,8 @@ more, no less, so that even slightly non-conforming JSON is rejected.
 The input is assumed to be UTF-8, and all strings returned by the
 library are UTF-8 with possible nul characters in the middle, which is
 why the size output parameter is important. Encoded characters
-(`\uxxxx`) are decoded and re-encoded into UTF-8.
+(`\uxxxx`) are decoded and re-encoded into UTF-8. UTF-16 surrogate
+pairs expressed as adjacent encoded characters are supported.
 
 One exception to this rule is made to support a "streaming" mode. When
 a JSON "stream" contains multiple JSON objects (optionally separated
