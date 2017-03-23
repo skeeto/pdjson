@@ -32,7 +32,7 @@ struct json_stream {
     size_t stack_size;
     enum json_type next;
     int error : 31;
-    bool strict : 1;
+    bool streaming : 1;
 
     struct {
         char *string;

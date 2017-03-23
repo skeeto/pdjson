@@ -93,7 +93,7 @@ static void init(json_stream *json)
     json->errmsg[0] = '\0';
     json->ntokens = 0;
     json->next = 0;
-    json->strict = 0;
+    json->streaming = true;
 
     json->stack = NULL;
     json->stack_top = -1;
@@ -371,7 +371,7 @@ read_digits(json_stream *json)
         nread++;
     }
 
-    if (json->strict && nread == 0) {
+    if (nread == 0) {
         return -1;
     }
 
@@ -529,7 +529,7 @@ enum json_type json_next(json_stream *json)
             }
         } while (json_isspace(c));
 
-        if (json->strict && c != EOF) {
+        if (!json->streaming && c != EOF) {
             return JSON_ERROR;
         }
 
@@ -672,9 +672,9 @@ void json_set_allocator(json_stream *json, json_allocator *a)
     json->alloc = *a;
 }
 
-void json_set_strict(json_stream *json, bool strict)
+void json_set_streaming(json_stream *json, bool streaming)
 {
-    json->strict = strict;
+    json->streaming = streaming;
 }
 
 void json_close(json_stream *json)

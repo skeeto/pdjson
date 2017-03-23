@@ -23,9 +23,10 @@ typedef struct json_allocator json_allocator;
 void json_open_buffer(json_stream *json, const void *buffer, size_t size);
 void json_open_string(json_stream *json, const char *string);
 void json_open_stream(json_stream *json, FILE *stream);
-void json_set_allocator(json_stream *json, json_allocator *a);
 void json_close(json_stream *json);
-void json_set_strict(json_stream *json, bool strict);
+
+void json_set_allocator(json_stream *json, json_allocator *a);
+void json_set_streaming(json_stream *json, bool strict);
 
 enum json_type json_next(json_stream *json);
 enum json_type json_peek(json_stream *json);
