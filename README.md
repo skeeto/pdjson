@@ -30,18 +30,18 @@ should not be accessed directly. To initialize, it can be "opened" on
 an input `FILE *` stream or memory buffer. It's disposed of by being
 "closed."
 
-~~~c
+```c
 void json_open_stream(json_stream *json, FILE * stream);
 void json_open_string(json_stream *json, const char *string);
 void json_open_buffer(json_stream *json, const void *buffer, size_t size);
 void json_close(json_stream *json);
-~~~
+```
 
 After opening a stream, custom allocator callbacks can be specified,
 in case allocations should not come from a system-supplied malloc.
 (When no custom allocator is specified, the system allocator is used.)
 
-~~~c
+```c
 struct json_allocator {
     void *(*malloc)(size_t);
     void *(*realloc)(void *, size_t);
@@ -50,36 +50,36 @@ struct json_allocator {
 
 
 void json_set_allocator(json_stream *json, json_allocator *a);
-~~~
+```
 
 By default only one value is read from the stream. The parser can be
 reset to read more objects. The overall line number and position are
 preserved.
 
-~~~c
+```c
 void json_reset(json_stream *json);
-~~~
+```
 
 If strict conformance to the JSON standard is desired, streaming mode
 can be disabled by calling `json_set_streaming` and setting the mode to
 `false`. This will cause any non-whitespace trailing data to trigger a
 parse error.
 
-~~~c
+```c
 void json_set_streaming(json_stream *json, bool mode);
-~~~
+```
 
 The JSON is parsed as a stream of events (`enum json_type`). The
 stream is in the indicated state, during which data can be queried and
 retrieved.
 
-~~~c
+```c
 enum json_type json_next(json_stream *json);
 enum json_type json_peek(json_stream *json);
 
 const char *json_get_string(json_stream *json, size_t *length);
 double json_get_number(json_stream *json);
-~~~
+```
 
 Numbers can also be retrieved by `json_get_string()`, which will
 return the raw text number as it appeared in the JSON. This is useful
@@ -91,11 +91,11 @@ error, a human-friendly, English error message is available, as well
 as the line number and byte position. (The line number and byte
 position are always available.)
 
-~~~c
+```c
 const char *json_get_error(json_stream *json);
 size_t json_get_lineno(json_stream *json);
 size_t json_get_position(json_stream *json);
-~~~
+```
 
 Outside of errors, a `JSON_OBJECT` event will always be followed by
 zero or more pairs of `JSON_STRING` (property name) events and their
