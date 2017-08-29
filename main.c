@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 #include "json.h"
 
 void indent(int n)
@@ -85,10 +87,44 @@ void pretty(json_stream *json)
     }
 }
 
-int main()
+long read_file(const char* fname, char** content)
+{
+    FILE *f = fopen(fname, "rb");
+    if (!f) goto err;
+    if (0 != fseek(f, 0, SEEK_END)) goto err;
+    long fsize = ftell(f);
+    if (fsize == -1L) goto err;
+    if (0 != fseek(f, 0, SEEK_SET)) goto err;
+    *content = malloc(fsize + 1);
+    fread(*content, fsize, 1, f);
+    if (ferror(f)) goto err;
+    fclose(f);
+    (*content)[fsize] = 0;
+    return fsize;
+
+err:
+    perror(strerror(errno));
+    return -1;
+}
+
+int main(int argc, char *argv[])
 {
     json_stream json;
-    json_open_stream(&json, stdin);
+    char *jstr = NULL;
+
+    if (argc < 2) {
+        json_open_stream(&json, stdin);
+    }
+    else {
+
+        if (-1 == read_file(argv[1], &jstr)) {
+            free(jstr);
+            exit(EXIT_FAILURE);
+        }
+        json_open_string(&json, jstr);
+    }
+
+	json_set_streaming(&json, false);
     pretty(&json);
     if (json_get_error(&json)) {
         fprintf(stderr, "%s\n", json_get_error(&json));
@@ -97,5 +133,6 @@ int main()
         printf("\n");
     }
     json_close(&json);
+    free(jstr);
     return 0;
 }
