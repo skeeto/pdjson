@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 201112L
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
