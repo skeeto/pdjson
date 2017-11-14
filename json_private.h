@@ -16,6 +16,11 @@ struct json_source {
             const char *buffer;
             size_t length;
         } buffer;
+        struct {
+            void *ptr;
+            json_user_io get;
+            json_user_io peek;
+        } user;
     } source;
 };
 

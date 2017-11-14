@@ -800,6 +800,26 @@ void json_open_stream(json_stream *json, FILE * stream)
     json->source.source.stream.stream = stream;
 }
 
+static int user_get(struct json_source *json)
+{
+    return json->source.user.get(json->source.user.ptr);
+}
+
+static int user_peek(struct json_source *json)
+{
+    return json->source.user.peek(json->source.user.ptr);
+}
+
+void json_open_user(json_stream *json, json_user_io get, json_user_io peek, void *user)
+{
+    init(json);
+    json->source.get = user_get;
+    json->source.peek = user_peek;
+    json->source.source.user.ptr = user;
+    json->source.source.user.get = get;
+    json->source.source.user.peek = peek;
+}
+
 void json_set_allocator(json_stream *json, json_allocator *a)
 {
     json->alloc = *a;

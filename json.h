@@ -1,6 +1,10 @@
 #ifndef PDJSON_H
 #define PDJSON_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
 #include <stdio.h>
 
 enum json_type {
@@ -15,6 +19,8 @@ struct json_allocator {
     void (*free)(void *);
 };
 
+typedef int (*json_user_io) (void *user);
+
 #include "json_private.h"
 
 typedef struct json_stream json_stream;
@@ -23,6 +29,7 @@ typedef struct json_allocator json_allocator;
 void json_open_buffer(json_stream *json, const void *buffer, size_t size);
 void json_open_string(json_stream *json, const char *string);
 void json_open_stream(json_stream *json, FILE *stream);
+void json_open_user(json_stream *json, json_user_io get, json_user_io peek, void *user);
 void json_close(json_stream *json);
 
 void json_set_allocator(json_stream *json, json_allocator *a);
@@ -38,5 +45,9 @@ size_t json_get_lineno(json_stream *json);
 size_t json_get_position(json_stream *json);
 size_t json_get_depth(json_stream *json);
 const char *json_get_error(json_stream *json);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus
 
 #endif
