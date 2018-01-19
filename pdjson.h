@@ -25,6 +25,8 @@ typedef int (*json_user_io) (void *user);
 typedef struct json_stream json_stream;
 typedef struct json_allocator json_allocator;
 
+extern const char *json_typename[];
+
 void json_open_buffer(json_stream *json, const void *buffer, size_t size);
 void json_open_string(json_stream *json, const char *string);
 void json_open_stream(json_stream *json, FILE *stream);

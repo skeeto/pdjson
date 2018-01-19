@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include "pdjson.h"
+#include "../pdjson.h"
 
 void indent(int n)
 {

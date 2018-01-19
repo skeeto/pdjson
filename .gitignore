@@ -1,2 +1,4 @@
 *.o
-json
+tests/pretty
+tests/stream
+tests/tests
