@@ -5,7 +5,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
-#include "json.h"
+#include "pdjson.h"
 
 #define json_error(json, format, ...)                             \
     if (!json->error) {                                           \
@@ -21,6 +21,11 @@
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #define strerror_r(err, buf, len) strerror_s(buf, len, err)
 #endif
+
+struct json_stack {
+    enum json_type type;
+    long count;
+};
 
 static void json_error_s(json_stream *json, int err)
 {

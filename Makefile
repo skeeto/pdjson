@@ -2,11 +2,8 @@
 CC     = cc
 CFLAGS = -std=c99 -pedantic -Wall -Wextra
 
-json: json.o main.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ json.o main.o $(LDLIBS)
+pretty: pretty.c pdjson.c pdjson.h
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ pretty.c pdjson.c $(LDLIBS)
 
 clean:
-	rm -f json json.o main.o
-
-run: json
-	./json
+	rm -f pretty

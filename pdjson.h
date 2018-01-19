@@ -6,6 +6,7 @@ extern "C" {
 #endif // __cplusplus
 
 #include <stdio.h>
+#include <stdbool.h>
 
 enum json_type {
     JSON_ERROR = 1, JSON_DONE,
@@ -20,8 +21,6 @@ struct json_allocator {
 };
 
 typedef int (*json_user_io) (void *user);
-
-#include "json_private.h"
 
 typedef struct json_stream json_stream;
 typedef struct json_allocator json_allocator;
@@ -45,6 +44,51 @@ size_t json_get_lineno(json_stream *json);
 size_t json_get_position(json_stream *json);
 size_t json_get_depth(json_stream *json);
 const char *json_get_error(json_stream *json);
+
+/* internal */
+
+struct json_source {
+    int (*get) (struct json_source *);
+    int (*peek) (struct json_source *);
+    size_t position;
+    union {
+        struct {
+            FILE *stream;
+        } stream;
+        struct {
+            const char *buffer;
+            size_t length;
+        } buffer;
+        struct {
+            void *ptr;
+            json_user_io get;
+            json_user_io peek;
+        } user;
+    } source;
+};
+
+struct json_stream {
+    size_t lineno;
+
+    struct json_stack *stack;
+    size_t stack_top;
+    size_t stack_size;
+    enum json_type next;
+    int error : 31;
+    bool streaming : 1;
+
+    struct {
+        char *string;
+        size_t string_fill;
+        size_t string_size;
+    } data;
+
+    size_t ntokens;
+
+    struct json_source source;
+    struct json_allocator alloc;
+    char errmsg[128];
+};
 
 #ifdef __cplusplus
 } // extern "C"
