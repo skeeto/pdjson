@@ -58,16 +58,10 @@ pop(json_stream *json, int c, enum json_type expected)
 {
     if (json->stack == NULL || json->stack[json->stack_top].type != expected) {
         json_error(json, "unexpected byte, '%c'", c);
-        json->alloc.free(json->stack);
         return JSON_ERROR;
     }
     json->stack_top--;
     return expected == JSON_ARRAY ? JSON_ARRAY_END : JSON_OBJECT_END;
-}
-
-static void pop_all(json_stream *json)
-{
-    json->alloc.free(json->stack);
 }
 
 static int buffer_peek(struct json_source *source)
@@ -669,7 +663,7 @@ enum json_type json_next(json_stream *json)
         return JSON_DONE;
     }
     int c = next(json);
-    if (json->stack == NULL)
+    if (json->stack_top == (size_t)-1)
         return read_value(json, c);
     if (json->stack[json->stack_top].type == JSON_ARRAY) {
         if (json->stack[json->stack_top].count == 0) {
@@ -736,7 +730,7 @@ enum json_type json_next(json_stream *json)
 
 void json_reset(json_stream *json)
 {
-    pop_all(json);
+    json->stack_top = -1;
     json->ntokens = 0;
     json->error = 0;
     json->errmsg[0] = '\0';
@@ -832,6 +826,6 @@ void json_set_streaming(json_stream *json, bool streaming)
 
 void json_close(json_stream *json)
 {
-    pop_all(json);
+    json->alloc.free(json->stack);
     json->alloc.free(json->data.string);
 }
