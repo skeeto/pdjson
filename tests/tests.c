@@ -8,49 +8,66 @@ struct expect {
     const char *str;
 };
 
-#define TEST(name, streaming) \
+#define countof(a) (sizeof(a) / sizeof(*a))
+
+#define TEST(name, stream) \
     do { \
-        int success = 1; \
-        struct json_stream json[1]; \
-        enum json_type expect, actual; \
-        const char *expect_str, *actual_str; \
-        json_open_buffer(json, str, sizeof(str) - 1); \
-        json_set_streaming(json, streaming); \
-        for (size_t i = 0; i < sizeof(seq) / sizeof(*seq); i++) { \
-            expect = seq[i].type; \
-            actual = json_next(json); \
-            if (seq[i].str) { \
-                expect_str = seq[i].str; \
-                actual_str = json_get_string(json, 0); \
-            } else { \
-                expect_str = ""; \
-                actual_str = ""; \
-            } \
-            if (actual != expect) { \
-                success = 0; \
-                break; \
-            } \
-            if (seq[i].str && strcmp(expect_str, actual_str)) { \
-                success = 0; \
-                break; \
-            } \
-            if (streaming && actual == JSON_DONE) \
-                json_reset(json); \
-        } \
-        if (success) { \
-            printf("\033[32;1mPASS\033[0m %s\n", name); \
+        int r = test(name, stream, seq, countof(seq), str, sizeof(str) - 1); \
+        if (r) \
             count_pass++; \
-        } else { \
-            printf("\033[31;1mFAIL\033[0m %s: " \
-                    "expect \033[1m%s\033[0m %s / " \
-                    "got \033[1m%s\033[0m %s\n", \
-                    name, \
-                    json_typename[expect], expect_str, \
-                    json_typename[actual], actual_str); \
+        else \
             count_fail++; \
-        } \
-        json_close(json); \
     } while (0)
+
+
+static int
+has_value(enum json_type type)
+{
+    return type == JSON_STRING || type == JSON_NUMBER;
+}
+
+static int
+test(const char *name,
+     int stream,
+     struct expect *seq,
+     size_t seqlen,
+     const char *buf,
+     size_t len)
+{
+    int success = 1;
+    struct json_stream json[1];
+    enum json_type expect, actual;
+    const char *expect_str, *actual_str;
+
+    json_open_buffer(json, buf, len);
+    json_set_streaming(json, stream);
+    for (size_t i = 0; success && i < seqlen; i++) {
+        expect = seq[i].type;
+        actual = json_next(json);
+        actual_str = has_value(actual) ? json_get_string(json, 0) : "";
+        expect_str = seq[i].str ? seq[i].str : "";
+
+        if (actual != expect)
+            success = 0;
+        else if (seq[i].str && !!strcmp(expect_str, actual_str))
+            success = 0;
+        else if (stream && actual == JSON_DONE)
+            json_reset(json);
+    }
+
+    if (success) {
+        printf("\033[32;1mPASS\033[0m %s\n", name);
+    } else {
+        printf("\033[31;1mFAIL\033[0m %s: "
+               "expect \033[1m%s\033[0m %s / "
+               "actual \033[1m%s\033[0m %s\n",
+               name,
+               json_typename[expect], expect_str,
+               json_typename[actual], actual_str);
+    }
+    json_close(json);
+    return success;
+}
 
 int
 main(void)
