@@ -3,6 +3,16 @@
 #include <string.h>
 #include "../pdjson.h"
 
+#if _WIN32
+#  define C_RED(s)   s
+#  define C_GREEN(s) s
+#  define C_BOLD(s)  s
+#else
+#  define C_RED(s)   "\033[31;1m" s "\033[0m"
+#  define C_GREEN(s) "\033[32;1m" s "\033[0m"
+#  define C_BOLD(s)  "\033[1m"    s "\033[0m"
+#endif
+
 struct expect {
     enum json_type type;
     const char *str;
@@ -56,11 +66,11 @@ test(const char *name,
     }
 
     if (success) {
-        printf("\033[32;1mPASS\033[0m %s\n", name);
+        printf(C_GREEN("PASS") " %s\n", name);
     } else {
-        printf("\033[31;1mFAIL\033[0m %s: "
-               "expect \033[1m%s\033[0m %s / "
-               "actual \033[1m%s\033[0m %s\n",
+        printf(C_RED("FAIL") " %s: "
+               "expect " C_BOLD("%s") " %s / "
+               "actual " C_BOLD("%s") " %s\n",
                name,
                json_typename[expect], expect_str,
                json_typename[actual], actual_str);
