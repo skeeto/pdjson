@@ -76,8 +76,7 @@ struct json_stream {
     size_t stack_top;
     size_t stack_size;
     enum json_type next;
-    int error : 31;
-    bool streaming : 1;
+    unsigned flags;
 
     struct {
         char *string;

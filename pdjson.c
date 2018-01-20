@@ -7,9 +7,12 @@
 #include <errno.h>
 #include "pdjson.h"
 
+#define JSON_FLAG_ERROR      (1u << 0)
+#define JSON_FLAG_STREAMING  (1u << 1)
+
 #define json_error(json, format, ...)                             \
-    if (!json->error) {                                           \
-        json->error = 1;                                          \
+    if (!(json->flags & JSON_FLAG_ERROR)) {                       \
+        json->flags |= JSON_FLAG_ERROR;                           \
         snprintf(json->errmsg, sizeof(json->errmsg),              \
                  "error: %lu: " format,                           \
                  (unsigned long) json->lineno,                    \
@@ -114,11 +117,10 @@ static int stream_peek(struct json_source *source)
 static void init(json_stream *json)
 {
     json->lineno = 1;
-    json->error = 0;
+    json->flags = JSON_FLAG_STREAMING;
     json->errmsg[0] = '\0';
     json->ntokens = 0;
     json->next = 0;
-    json->streaming = true;
 
     json->stack = NULL;
     json->stack_top = -1;
@@ -658,7 +660,7 @@ enum json_type json_peek(json_stream *json)
 
 enum json_type json_next(json_stream *json)
 {
-    if (json->error)
+    if (json->flags & JSON_FLAG_ERROR)
         return JSON_ERROR;
     if (json->next != 0) {
         enum json_type next = json->next;
@@ -675,7 +677,7 @@ enum json_type json_next(json_stream *json)
             }
         } while (json_isspace(c));
 
-        if (!json->streaming && c != EOF) {
+        if (!(json->flags & JSON_FLAG_STREAMING) && c != EOF) {
             return JSON_ERROR;
         }
 
@@ -751,7 +753,7 @@ void json_reset(json_stream *json)
 {
     json->stack_top = -1;
     json->ntokens = 0;
-    json->error = 0;
+    json->flags &= ~JSON_FLAG_ERROR;
     json->errmsg[0] = '\0';
 }
 
@@ -773,7 +775,7 @@ double json_get_number(json_stream *json)
 
 const char *json_get_error(json_stream *json)
 {
-    return json->error ? json->errmsg : NULL;
+    return json->flags & JSON_FLAG_ERROR ? json->errmsg : NULL;
 }
 
 size_t json_get_lineno(json_stream *json)
@@ -840,7 +842,10 @@ void json_set_allocator(json_stream *json, json_allocator *a)
 
 void json_set_streaming(json_stream *json, bool streaming)
 {
-    json->streaming = streaming;
+    if (streaming)
+        json->flags |= JSON_FLAG_STREAMING;
+    else
+        json->flags &= ~JSON_FLAG_STREAMING;
 }
 
 void json_close(json_stream *json)
