@@ -82,7 +82,7 @@ main(void)
             {JSON_FALSE},
             {JSON_DONE},
         };
-        TEST("true", false);
+        TEST("false", false);
     }
 
     {
