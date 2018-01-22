@@ -25,3 +25,6 @@ check: tests/tests
 clean:
 	rm -f tests/pretty tests/tests tests/stream
 	rm -f pdjson.o tests/pretty.o tests/tests.o tests/stream.o
+
+.c.o:
+	$(CC) -c $(CFLAGS) -o $@ $<
