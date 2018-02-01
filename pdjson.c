@@ -1,5 +1,4 @@
 #define _POSIX_C_SOURCE 200112L
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -9,6 +8,20 @@
 #define JSON_FLAG_ERROR      (1u << 0)
 #define JSON_FLAG_STREAMING  (1u << 1)
 
+#if defined(_MSC_VER) && (_MSC_VER < 1900)
+
+#define json_error(json, format, ...)                             \
+    if (!(json->flags & JSON_FLAG_ERROR)) {                       \
+        json->flags |= JSON_FLAG_ERROR;                           \
+        _snprintf_s(json->errmsg, sizeof(json->errmsg),           \
+                 _TRUNCATE,                                       \
+                 "error: %lu: " format,                           \
+                 (unsigned long) json->lineno,                    \
+                 __VA_ARGS__);                                    \
+    }                                                             \
+
+#else
+
 #define json_error(json, format, ...)                             \
     if (!(json->flags & JSON_FLAG_ERROR)) {                       \
         json->flags |= JSON_FLAG_ERROR;                           \
@@ -17,6 +30,8 @@
                  (unsigned long) json->lineno,                    \
                  __VA_ARGS__);                                    \
     }                                                             \
+
+#endif /* _MSC_VER */
 
 #define STACK_INC 4
 
@@ -434,7 +449,8 @@ read_utf8(json_stream* json, int next_char)
 
     char buffer[4];
     buffer[0] = next_char;
-    for (int i = 1; i < count; ++i)
+    int i;
+    for (i = 1; i < count; ++i)
     {
         buffer[i] = json->source.get(&json->source);;
     }
@@ -445,7 +461,7 @@ read_utf8(json_stream* json, int next_char)
         return -1;
     }
 
-    for (int i = 0; i < count; ++i)
+    for (i = 0; i < count; ++i)
     {
         if (pushchar(json, buffer[i]) != 0)
             return -1;

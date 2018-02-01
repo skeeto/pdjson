@@ -268,7 +268,7 @@ main(void)
         /* This is a valid encoding for U+10000 */
         const char str[] = "\":\\uD800\\uDC00\"";
         struct expect seq[] = {
-            {JSON_STRING, ":\xf0\x90\x80\x80"}, // UTF-8 for U+10000
+            {JSON_STRING, ":\xf0\x90\x80\x80"}, /* UTF-8 for U+10000 */
             {JSON_DONE},
         };
         TEST("surrogate pair", false);
