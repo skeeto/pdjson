@@ -29,6 +29,19 @@ struct expect {
             count_fail++; \
     } while (0)
 
+const char json_typename[][16] = {
+    [JSON_ERROR]      = "ERROR",
+    [JSON_DONE]       = "DONE",
+    [JSON_OBJECT]     = "OBJECT",
+    [JSON_OBJECT_END] = "OBJECT_END",
+    [JSON_ARRAY]      = "ARRAY",
+    [JSON_ARRAY_END]  = "ARRAY_END",
+    [JSON_STRING]     = "STRING",
+    [JSON_NUMBER]     = "NUMBER",
+    [JSON_TRUE]       = "TRUE",
+    [JSON_FALSE]      = "FALSE",
+    [JSON_NULL]       = "NULL",
+};
 
 static int
 has_value(enum json_type type)
