@@ -4,7 +4,7 @@
 #ifdef __cplusplus
 extern "C" {
 #else
-#if defined(__STDC_VERSION__) || (__STDC_VERSION__ >= 199901L)
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
     #include <stdbool.h>
 #else
     #ifndef bool
