@@ -3,10 +3,11 @@
 
 #ifdef __cplusplus
 extern "C" {
+#else
+#include <stdbool.h>
 #endif // __cplusplus
 
 #include <stdio.h>
-#include <stdbool.h>
 
 enum json_type {
     JSON_ERROR = 1, JSON_DONE,

@@ -1,6 +1,5 @@
 #define _POSIX_C_SOURCE 200112L
 #include <stdio.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
