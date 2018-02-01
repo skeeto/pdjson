@@ -44,8 +44,8 @@ push(json_stream *json, enum json_type type)
 
     if (json->stack_top >= json->stack_size) {
         struct json_stack *stack;
-        stack = json->alloc.realloc(json->stack,
-                (json->stack_size + STACK_INC) * sizeof(*json->stack));
+        size_t size = (json->stack_size + STACK_INC) * sizeof(*json->stack);
+        stack = (struct json_stack *)json->alloc.realloc(json->stack, size);
         if (stack == NULL) {
             json_error_s(json, errno);
             return JSON_ERROR;
@@ -106,7 +106,7 @@ static void init(json_stream *json)
     json->flags = JSON_FLAG_STREAMING;
     json->errmsg[0] = '\0';
     json->ntokens = 0;
-    json->next = 0;
+    json->next = (enum json_type)0;
 
     json->stack = NULL;
     json->stack_top = -1;
@@ -135,7 +135,7 @@ static int pushchar(json_stream *json, int c)
 {
     if (json->data.string_fill == json->data.string_size) {
         size_t size = json->data.string_size * 2;
-        char *buffer = json->alloc.realloc(json->data.string, size);
+        char *buffer = (char *)json->alloc.realloc(json->data.string, size);
         if (buffer == NULL) {
             json_error_s(json, errno);
             return -1;
@@ -153,7 +153,7 @@ static int init_string(json_stream *json)
     json->data.string_fill = 0;
     if (json->data.string == NULL) {
         json->data.string_size = 1024;
-        json->data.string = json->alloc.malloc(json->data.string_size);
+        json->data.string = (char *)json->alloc.malloc(json->data.string_size);
         if (json->data.string == NULL) {
             json_error_s(json, errno);
             return -1;
@@ -319,7 +319,7 @@ int read_escaped(json_stream *json)
         case '"':
             {
                 const char *codes = "\\bfnrt/\"";
-                char *p = strchr(codes, c);
+                const char *p = strchr(codes, c);
                 if (pushchar(json, "\\\b\f\n\r\t/\""[p - codes]) != 0)
                     return -1;
             }
@@ -650,7 +650,7 @@ enum json_type json_next(json_stream *json)
         return JSON_ERROR;
     if (json->next != 0) {
         enum json_type next = json->next;
-        json->next = 0;
+        json->next = (enum json_type)0;
         return next;
     }
     if (json->ntokens > 0 && json->stack_top == (size_t)-1) {
@@ -784,7 +784,7 @@ void json_open_buffer(json_stream *json, const void *buffer, size_t size)
     init(json);
     json->source.get = buffer_get;
     json->source.peek = buffer_peek;
-    json->source.source.buffer.buffer = buffer;
+    json->source.source.buffer.buffer = (const char *)buffer;
     json->source.source.buffer.length = size;
 }
 
