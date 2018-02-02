@@ -29,18 +29,19 @@ struct expect {
             count_fail++; \
     } while (0)
 
-const char json_typename[][16] = {
-    [JSON_ERROR]      = "ERROR",
-    [JSON_DONE]       = "DONE",
-    [JSON_OBJECT]     = "OBJECT",
-    [JSON_OBJECT_END] = "OBJECT_END",
-    [JSON_ARRAY]      = "ARRAY",
-    [JSON_ARRAY_END]  = "ARRAY_END",
-    [JSON_STRING]     = "STRING",
-    [JSON_NUMBER]     = "NUMBER",
-    [JSON_TRUE]       = "TRUE",
-    [JSON_FALSE]      = "FALSE",
-    [JSON_NULL]       = "NULL",
+const char json_typename[][12] = {
+    "",
+    "ERROR",
+    "DONE",
+    "OBJECT",
+    "OBJECT_END",
+    "ARRAY",
+    "ARRAY_END",
+    "STRING",
+    "NUMBER",
+    "TRUE",
+    "FALSE",
+    "NULL",
 };
 
 static int
@@ -57,6 +58,7 @@ test(const char *name,
      const char *buf,
      size_t len)
 {
+    size_t i;
     int success = 1;
     struct json_stream json[1];
     enum json_type expect, actual;
@@ -64,7 +66,7 @@ test(const char *name,
 
     json_open_buffer(json, buf, len);
     json_set_streaming(json, stream);
-    for (size_t i = 0; success && i < seqlen; i++) {
+    for (i = 0; success && i < seqlen; i++) {
         expect = seq[i].type;
         actual = json_next(json);
         actual_str = has_value(actual) ? json_get_string(json, 0) : "";
@@ -104,7 +106,7 @@ main(void)
             {JSON_NUMBER, "1024"},
             {JSON_DONE},
         };
-        TEST("number", false);
+        TEST("number", 0);
     }
 
     {
@@ -113,7 +115,7 @@ main(void)
             {JSON_TRUE},
             {JSON_DONE},
         };
-        TEST("true", false);
+        TEST("true", 0);
     }
 
     {
@@ -122,7 +124,7 @@ main(void)
             {JSON_FALSE},
             {JSON_DONE},
         };
-        TEST("false", false);
+        TEST("false", 0);
     }
 
     {
@@ -131,7 +133,7 @@ main(void)
             {JSON_NULL},
             {JSON_DONE},
         };
-        TEST("null", false);
+        TEST("null", 0);
     }
 
     {
@@ -140,7 +142,7 @@ main(void)
             {JSON_STRING, "foo"},
             {JSON_DONE},
         };
-        TEST("string", false);
+        TEST("string", 0);
     }
 
     {
@@ -149,7 +151,7 @@ main(void)
             {JSON_STRING, "Tim \"The Tool Man\" Taylor"},
             {JSON_DONE},
         };
-        TEST("string quotes", false);
+        TEST("string quotes", 0);
     }
 
     {
@@ -161,7 +163,7 @@ main(void)
             {JSON_OBJECT_END},
             {JSON_DONE},
         };
-        TEST("object", false);
+        TEST("object", 0);
     }
 
     {
@@ -175,7 +177,7 @@ main(void)
             {JSON_ARRAY_END},
             {JSON_DONE},
         };
-        TEST("array", false);
+        TEST("array", 0);
     }
 
     {
@@ -191,7 +193,7 @@ main(void)
             {JSON_DONE},
             {JSON_ERROR},
         };
-        TEST("number stream", true);
+        TEST("number stream", 1);
     }
 
     {
@@ -213,7 +215,7 @@ main(void)
             {JSON_DONE},
             {JSON_ERROR},
         };
-        TEST("mixed stream", true);
+        TEST("mixed stream", 1);
     }
 
     {
@@ -225,7 +227,7 @@ main(void)
             {JSON_NUMBER, "3"},
             {JSON_ERROR},
         };
-        TEST("incomplete array", false);
+        TEST("incomplete array", 0);
     }
 
     {
@@ -234,7 +236,7 @@ main(void)
             {JSON_STRING, "hello"},
             {JSON_DONE},
         };
-        TEST("\\uXXXX", false);
+        TEST("\\uXXXX", 0);
     }
 
     {
@@ -243,7 +245,7 @@ main(void)
         struct expect seq[] = {
             {JSON_ERROR}
         };
-        TEST("invalid surrogate pair", false);
+        TEST("invalid surrogate pair", 0);
     }
 
     {
@@ -252,7 +254,7 @@ main(void)
         struct expect seq[] = {
             {JSON_ERROR}
         };
-        TEST("invalid surrogate half", false);
+        TEST("invalid surrogate half", 0);
     }
 
     {
@@ -261,7 +263,7 @@ main(void)
         struct expect seq[] = {
             {JSON_ERROR}
         };
-        TEST("surrogate misorder", false);
+        TEST("surrogate misorder", 0);
     }
 
     {
@@ -271,7 +273,7 @@ main(void)
             {JSON_STRING, ":\xf0\x90\x80\x80"}, /* UTF-8 for U+10000 */
             {JSON_DONE},
         };
-        TEST("surrogate pair", false);
+        TEST("surrogate pair", 0);
     }
 
     printf("%d pass, %d fail\n", count_pass, count_fail);

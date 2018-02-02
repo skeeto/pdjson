@@ -4,18 +4,21 @@
 #include <errno.h>
 #include "../pdjson.h"
 
-void indent(int n)
+void
+indent(int n)
 {
-    for (int i = 0; i < n * 2; i++)
+    int i;
+    for (i = 0; i < n * 2; i++)
         putchar(' ');
 }
 
 void pretty(json_stream *json);
 
-void pretty_array(json_stream *json)
+void
+pretty_array(json_stream *json)
 {
-    printf("[\n");
     int first = 1;
+    printf("[\n");
     while (json_peek(json) != JSON_ARRAY_END && !json_get_error(json)) {
         if (!first)
             printf(",\n");
@@ -30,10 +33,11 @@ void pretty_array(json_stream *json)
     printf("]");
 }
 
-void pretty_object(json_stream *json)
+void
+pretty_object(json_stream *json)
 {
-    printf("{\n");
     int first = 1;
+    printf("{\n");
     while (json_peek(json) != JSON_OBJECT_END && !json_get_error(json)) {
         if (!first)
             printf(",\n");
@@ -50,49 +54,54 @@ void pretty_object(json_stream *json)
     printf("}");
 }
 
-void pretty(json_stream *json)
+void
+pretty(json_stream *json)
 {
     enum json_type type = json_next(json);
     switch (type) {
-    case JSON_DONE:
-        return;
-    case JSON_NULL:
-        printf("null");
-        break;
-    case JSON_TRUE:
-        printf("true");
-        break;
-    case JSON_FALSE:
-        printf("false");
+        case JSON_DONE:
+            return;
+        case JSON_NULL:
+            printf("null");
             break;
-    case JSON_NUMBER:
-        printf("%s", json_get_string(json, NULL));
-        break;
-    case JSON_STRING:
-        printf("\"%s\"", json_get_string(json, NULL));
-        break;
-    case JSON_ARRAY:
-        pretty_array(json);
-        break;
-    case JSON_OBJECT:
-        pretty_object(json);
-        break;
-    case JSON_OBJECT_END:
-    case JSON_ARRAY_END:
-        return;
-    case JSON_ERROR:
+        case JSON_TRUE:
+            printf("true");
+            break;
+        case JSON_FALSE:
+            printf("false");
+            break;
+        case JSON_NUMBER:
+            printf("%s", json_get_string(json, NULL));
+            break;
+        case JSON_STRING:
+            printf("\"%s\"", json_get_string(json, NULL));
+            break;
+        case JSON_ARRAY:
+            pretty_array(json);
+            break;
+        case JSON_OBJECT:
+            pretty_object(json);
+            break;
+        case JSON_OBJECT_END:
+        case JSON_ARRAY_END:
+            return;
+        case JSON_ERROR:
             printf("exiting %d\n", type);
             fprintf(stderr, "%s\n", json_get_error(json));
             exit(EXIT_FAILURE);
     }
 }
 
-long read_file(const char* fname, char** content)
+long
+read_file(const char* fname, char** content)
 {
-    FILE *f = fopen(fname, "rb");
+    FILE *f;
+    long fsize;
+
+    f = fopen(fname, "rb");
     if (!f) goto err;
     if (0 != fseek(f, 0, SEEK_END)) goto err;
-    long fsize = ftell(f);
+    fsize = ftell(f);
     if (fsize == -1L) goto err;
     if (0 != fseek(f, 0, SEEK_SET)) goto err;
     *content = malloc(fsize + 1);
@@ -107,7 +116,8 @@ err:
     return -1;
 }
 
-int main(int argc, char *argv[])
+int
+main(int argc, char **argv)
 {
     json_stream json;
     char *jstr = NULL;
@@ -124,7 +134,7 @@ int main(int argc, char *argv[])
         json_open_string(&json, jstr);
     }
 
-	json_set_streaming(&json, false);
+	json_set_streaming(&json, 0);
     pretty(&json);
     if (json_get_error(&json)) {
         fprintf(stderr, "%s\n", json_get_error(&json));

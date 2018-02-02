@@ -1,22 +1,22 @@
 .POSIX:
 CC     = cc
-CFLAGS = -std=c99 -pedantic -Wall -Wextra -Wno-missing-field-initializers
+CFLAGS = -ansi -pedantic -Wall -Wextra -Wno-missing-field-initializers
 
 all: tests/pretty tests/stream tests/tests
 
 tests/pretty: tests/pretty.o pdjson.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ tests/pretty.o pdjson.o $(LDLIBS)
+	$(CC) $(LDFLAGS) -o $@ tests/pretty.o pdjson.o $(LDLIBS)
 
 tests/tests: tests/tests.o pdjson.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ tests/tests.o pdjson.o $(LDLIBS)
+	$(CC) $(LDFLAGS) -o $@ tests/tests.o pdjson.o $(LDLIBS)
 
 tests/stream: tests/stream.o pdjson.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ tests/stream.o pdjson.o $(LDLIBS)
+	$(CC) $(LDFLAGS) -o $@ tests/stream.o pdjson.o $(LDLIBS)
 
 pdjson.o: pdjson.c pdjson.h
 tests/pretty.o: tests/pretty.c pdjson.h
 tests/tests.o: tests/tests.c pdjson.h
-tests/stream.o: tests/tests.c pdjson.h
+tests/stream.o: tests/stream.c pdjson.h
 
 test: check
 check: tests/tests

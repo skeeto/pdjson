@@ -3,16 +3,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-#else
-#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
-    #include <stdbool.h>
-#else
-    #ifndef bool
-        #define bool int
-        #define true 1
-        #define false 0
-    #endif /* bool */
-#endif /* __STDC_VERSION__ */
 #endif /* __cplusplus */
 
 #include <stdio.h>
@@ -41,7 +31,7 @@ void json_open_user(json_stream *json, json_user_io get, json_user_io peek, void
 void json_close(json_stream *json);
 
 void json_set_allocator(json_stream *json, json_allocator *a);
-void json_set_streaming(json_stream *json, bool strict);
+void json_set_streaming(json_stream *json, int strict);
 
 enum json_type json_next(json_stream *json);
 enum json_type json_peek(json_stream *json);
