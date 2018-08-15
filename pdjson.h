@@ -49,6 +49,9 @@ void json_reset(json_stream *json);
 const char *json_get_string(json_stream *json, size_t *length);
 double json_get_number(json_stream *json);
 
+enum json_type json_skip(json_stream *json);
+enum json_type json_skip_until(json_stream *json, enum json_type type);
+
 size_t json_get_lineno(json_stream *json);
 size_t json_get_position(json_stream *json);
 size_t json_get_depth(json_stream *json);

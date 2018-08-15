@@ -759,6 +759,48 @@ void json_reset(json_stream *json)
     json->errmsg[0] = '\0';
 }
 
+enum json_type json_skip(json_stream *json)
+{
+    enum json_type type = json_next(json);
+    size_t cnt_arr = 0;
+    size_t cnt_obj = 0;
+
+    for (enum json_type skip = type; ; skip = json_next(json)) {
+        if (skip == JSON_ERROR || skip == JSON_DONE)
+            return skip;
+
+        if (skip == JSON_ARRAY) {
+            ++cnt_arr;
+        } else if (skip == JSON_ARRAY_END && cnt_arr > 0) {
+            --cnt_arr;
+        } else if (skip == JSON_OBJECT) {
+            ++cnt_obj;
+        } else if (skip == JSON_OBJECT_END && cnt_obj > 0) {
+            --cnt_obj;
+        }
+
+        if (!cnt_arr && !cnt_obj)
+            break;
+    }
+
+    return type;
+}
+
+enum json_type json_skip_until(json_stream *json, enum json_type type)
+{
+    while (1) {
+        enum json_type skip = json_skip(json);
+
+        if (skip == JSON_ERROR || skip == JSON_DONE)
+            return skip;
+
+        if (skip == type)
+            break;
+    }
+
+    return type;
+}
+
 const char *json_get_string(json_stream *json, size_t *length)
 {
     if (length != NULL)
