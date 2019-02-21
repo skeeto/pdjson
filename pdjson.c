@@ -1,5 +1,4 @@
 #include <ctype.h>
-#include <errno.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,12 +29,6 @@ json_error(struct json_stream *json, const char *fmt, ...)
     }
 }
 
-static void
-json_error_s(json_stream *json, int err)
-{
-    json_error(json, "%s", strerror(err));
-}
-
 static enum json_type
 push(json_stream *json, enum json_type type)
 {
@@ -46,7 +39,7 @@ push(json_stream *json, enum json_type type)
         size_t size = json->stack_size ? json->stack_size * 2 : 8;
         stack = json->alloc.realloc(json->stack, size * sizeof(*json->stack));
         if (!stack) {
-            json_error_s(json, errno);
+            json_error(json, "out of memory");
             return JSON_ERROR;
         }
         json->stack_size = size;
@@ -142,7 +135,7 @@ pushchar(json_stream *json, int c)
         size_t size = json->data.string_size * 2;
         char *buffer = json->alloc.realloc(json->data.string, size);
         if (buffer == NULL) {
-            json_error_s(json, errno);
+            json_error(json, "out of memory");
             return -1;
         } else {
             json->data.string_size = size;
@@ -161,7 +154,7 @@ init_string(json_stream *json)
         json->data.string_size = 1024;
         json->data.string = json->alloc.malloc(json->data.string_size);
         if (json->data.string == NULL) {
-            json_error_s(json, errno);
+            json_error(json, "out of memory");
             return -1;
         }
     }
