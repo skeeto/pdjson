@@ -27,15 +27,14 @@ The library is usable and nearly complete, but needs polish.
 ## API Overview
 
 All parser state is attached to a `json_stream` struct. Its fields
-should not be accessed directly. To initialize, it can be "opened" on
-an input `FILE *` stream or memory buffer. It's disposed of by being
-"closed."
+should not be accessed directly. To initialize, it's "opened" on a
+user-defined function that returns the input a byte at a time. Return a
+negative value from this function to indicate EOF.
 
 ```c
-void json_open_stream(json_stream *json, FILE * stream);
-void json_open_string(json_stream *json, const char *string);
-void json_open_buffer(json_stream *json, const void *buffer, size_t size);
-void json_close(json_stream *json);
+typedef int (*json_fgetc)(void *);
+void json_open(struct json_stream *, json_fgetc f, void *arg, int flags);
+void json_close(struct json_stream *);
 ```
 
 After opening a stream, custom allocator callbacks can be specified,
@@ -43,14 +42,12 @@ in case allocations should not come from a system-supplied malloc.
 (When no custom allocator is specified, the system allocator is used.)
 
 ```c
-struct json_allocator {
-    void *(*malloc)(size_t);
-    void *(*realloc)(void *, size_t);
-    void (*free)(void *);
-};
-
-
-void json_set_allocator(json_stream *json, json_allocator *a);
+typedef void *(*json_realloc)(void *, size_t, void *ctx);
+typedef void  (*json_free)(void *, void *ctx);
+void json_set_allocator(struct json_stream *,
+                        json_realloc,
+                        json_free,
+                        void *ctx);
 ```
 
 By default only one value is read from the stream. The parser can be
@@ -58,28 +55,23 @@ reset to read more objects. The overall line number and position are
 preserved.
 
 ```c
-void json_reset(json_stream *json);
+void json_reset(struct json_stream *);
 ```
 
-If strict conformance to the JSON standard is desired, streaming mode
-can be disabled by calling `json_set_streaming` and setting the mode to
-`false`. This will cause any non-whitespace trailing data to trigger a
-parse error.
-
-```c
-void json_set_streaming(json_stream *json, bool mode);
-```
+By default the parser enforced strict conformance to the JSON standard.
+To relax this and allow for a stream of independent JSON objects, use
+the `JSON_FLAG_STREAMING` flag when opening the JSON stream.
 
 The JSON is parsed as a stream of events (`enum json_type`). The
 stream is in the indicated state, during which data can be queried and
 retrieved.
 
 ```c
-enum json_type json_next(json_stream *json);
-enum json_type json_peek(json_stream *json);
+enum json_type json_next(struct json_stream *);
+enum json_type json_peek(struct json_stream *);
 
-const char *json_get_string(json_stream *json, size_t *length);
-double json_get_number(json_stream *json);
+const char *json_get_string(struct json_stream *, size_t *length);
+double json_get_number(json_stream *);
 ```
 
 Numbers can also be retrieved by `json_get_string()`, which will
@@ -93,12 +85,37 @@ as the line number and byte position. (The line number and byte
 position are always available.)
 
 ```c
-const char *json_get_error(json_stream *json);
-size_t json_get_lineno(json_stream *json);
-size_t json_get_position(json_stream *json);
+const char *json_get_error(json_stream *);
+unsigned long json_get_lineno(json_stream *);
+unsigned long json_get_position(json_stream *);
 ```
 
 Outside of errors, a `JSON_OBJECT` event will always be followed by
 zero or more pairs of `JSON_STRING` (property name) events and their
 associated value events. That is, the stream of events will always be
 logical and consistent.
+
+## Stream Open Example
+
+Suppose you want to consume a JSON object on standard input. The source
+function will wrap `fgetc()`.
+
+```c
+static int
+my_fgetc(void *arg)
+{
+    return fgetc(arg);
+}
+
+/* ... */
+
+    struct json_stream json;
+    json_open(&json, my_fgetc, stdin, 0);
+
+    /* ... consume all tokens ... */
+
+    /* check for input errors */
+    if (ferror(stdin)) {
+        /* ... */
+    }
+```

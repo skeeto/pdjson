@@ -50,6 +50,23 @@ has_value(enum json_type type)
     return type == JSON_STRING || type == JSON_NUMBER;
 }
 
+struct buffer {
+    const void *buf;
+    size_t len;
+    size_t pos;
+};
+
+static int
+buffer_fgetc(void *arg)
+{
+    const unsigned char *buf;
+    struct buffer *b = arg;
+    if (b->pos == b->len)
+        return -1;
+    buf = b->buf;
+    return buf[b->pos++];
+}
+
 static int
 test(const char *name,
      int stream,
@@ -60,12 +77,16 @@ test(const char *name,
 {
     size_t i;
     int success = 1;
+    struct buffer buffer;
     struct json_stream json[1];
     enum json_type expect, actual;
     const char *expect_str, *actual_str;
 
-    json_open_buffer(json, buf, len);
-    json_set_streaming(json, stream);
+    buffer.buf = buf;
+    buffer.len = len;
+    buffer.pos = 0;
+    json_open(json, buffer_fgetc, &buffer, JSON_FLAG_STREAMING);
+
     for (i = 0; success && i < seqlen; i++) {
         expect = seq[i].type;
         actual = json_next(json);

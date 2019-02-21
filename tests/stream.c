@@ -19,12 +19,17 @@ const char json_typename[][12] = {
     "NULL",
 };
 
+static int
+file_fgetc(void *arg)
+{
+    return fgetc(arg);
+}
+
 int
 main(void)
 {
-    json_stream s[1];
-    json_open_stream(s, stdin);
-    json_set_streaming(s, 1);
+    struct json_stream s[1];
+    json_open(s, file_fgetc, stdin, JSON_FLAG_STREAMING);
     puts("struct expect seq[] = {");
     for (;;) {
         enum json_type type = json_next(s);

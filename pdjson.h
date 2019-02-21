@@ -1,11 +1,9 @@
 #ifndef PDJSON_H
 #define PDJSON_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
+#include <stddef.h>
 
-#include <stdio.h>
+#define JSON_FLAG_STREAMING  (1u << 1)
 
 enum json_type {
     JSON_ERROR = 1, JSON_DONE,
@@ -13,61 +11,32 @@ enum json_type {
     JSON_STRING, JSON_NUMBER, JSON_TRUE, JSON_FALSE, JSON_NULL
 };
 
-struct json_allocator {
-    void *(*malloc)(size_t);
-    void *(*realloc)(void *, size_t);
-    void (*free)(void *);
-};
+typedef int   (*json_fgetc)(void *);
+typedef void *(*json_realloc)(void *, size_t, void *);
+typedef void  (*json_free)(void *, void *);
 
-typedef int (*json_user_io) (void *user);
+struct json_stream;
 
-typedef struct json_stream json_stream;
-typedef struct json_allocator json_allocator;
+void json_open(struct json_stream *, json_fgetc, void *, int flags);
+void json_close(struct json_stream *);
 
-void json_open_buffer(json_stream *json, const void *buffer, size_t size);
-void json_open_string(json_stream *json, const char *string);
-void json_open_stream(json_stream *json, FILE *stream);
-void json_open_user(json_stream *json, json_user_io get, json_user_io peek, void *user);
-void json_close(json_stream *json);
+void json_set_allocator(struct json_stream *, json_realloc, json_free, void *);
 
-void json_set_allocator(json_stream *json, json_allocator *a);
-void json_set_streaming(json_stream *json, int strict);
+enum json_type json_next(struct json_stream *);
+enum json_type json_peek(struct json_stream *);
+void json_reset(struct json_stream *);
+const char *json_get_string(struct json_stream *, size_t *);
+double json_get_number(struct json_stream *);
 
-enum json_type json_next(json_stream *json);
-enum json_type json_peek(json_stream *json);
-void json_reset(json_stream *json);
-const char *json_get_string(json_stream *json, size_t *length);
-double json_get_number(json_stream *json);
-
-size_t json_get_lineno(json_stream *json);
-size_t json_get_position(json_stream *json);
-size_t json_get_depth(json_stream *json);
-const char *json_get_error(json_stream *json);
+unsigned long json_get_lineno(struct json_stream *);
+unsigned long json_get_position(struct json_stream *);
+unsigned long json_get_depth(struct json_stream *);
+const char *json_get_error(struct json_stream *);
 
 /* internal */
 
-struct json_source {
-    int (*get) (struct json_source *);
-    int (*peek) (struct json_source *);
-    size_t position;
-    union {
-        struct {
-            FILE *stream;
-        } stream;
-        struct {
-            const char *buffer;
-            size_t length;
-        } buffer;
-        struct {
-            void *ptr;
-            json_user_io get;
-            json_user_io peek;
-        } user;
-    } source;
-};
-
 struct json_stream {
-    size_t lineno;
+    unsigned long lineno;
 
     struct json_stack *stack;
     size_t stack_top;
@@ -81,15 +50,18 @@ struct json_stream {
         size_t string_size;
     } data;
 
-    size_t ntokens;
+    unsigned long ntokens;
 
-    struct json_source source;
-    struct json_allocator alloc;
+    json_fgetc fgetc;
+    void *fgetc_arg;
+    unsigned long position;
+    int peek;
+
+    json_realloc realloc;
+    json_free free;
+    void *alloc_arg;
+
     char errmsg[128];
 };
-
-#ifdef __cplusplus
-} /* extern "C" */
-#endif /* __cplusplus */
 
 #endif

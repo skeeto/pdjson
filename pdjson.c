@@ -1,11 +1,11 @@
 #include <ctype.h>
+#include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include "pdjson.h"
 
 #define JSON_FLAG_ERROR      (1u << 0)
-#define JSON_FLAG_STREAMING  (1u << 1)
 
 struct json_stack {
     enum json_type type;
@@ -30,14 +30,16 @@ json_error(struct json_stream *json, const char *fmt, ...)
 }
 
 static enum json_type
-push(json_stream *json, enum json_type type)
+push(struct json_stream *json, enum json_type type)
 {
     json->stack_top++;
 
     if (json->stack_top >= json->stack_size) {
         struct json_stack *stack;
         size_t size = json->stack_size ? json->stack_size * 2 : 8;
-        stack = json->alloc.realloc(json->stack, size * sizeof(*json->stack));
+        stack = json->realloc(json->stack,
+                              size * sizeof(*json->stack),
+                              json->alloc_arg);
         if (!stack) {
             json_error(json, "out of memory");
             return JSON_ERROR;
@@ -53,7 +55,7 @@ push(json_stream *json, enum json_type type)
 }
 
 static enum json_type
-pop(json_stream *json, int c, enum json_type expected)
+pop(struct json_stream *json, int c, enum json_type expected)
 {
     if (json->stack == NULL || json->stack[json->stack_top].type != expected) {
         json_error(json, "unexpected byte, '%c'", c);
@@ -64,76 +66,48 @@ pop(json_stream *json, int c, enum json_type expected)
 }
 
 static int
-buffer_peek(struct json_source *source)
+json_io_get(struct json_stream *json)
 {
-    if (source->position < source->source.buffer.length)
-        return source->source.buffer.buffer[source->position];
-    else
-        return EOF;
-}
-
-static int
-buffer_get(struct json_source *source)
-{
-    int c = source->peek(source);
-    source->position++;
+    int c;
+    if (json->peek >= -1) {
+        c = json->peek;
+        json->peek = -2;
+    } else {
+        c = json->fgetc(json->fgetc_arg);
+        if (c < 0)
+            c = -1;
+        else
+            json->position++; /* FIXME */
+    }
     return c;
 }
 
 static int
-stream_get(struct json_source *source)
+json_io_peek(struct json_stream *json)
 {
-    source->position++;
-    return fgetc(source->source.stream.stream);
-}
-
-static int
-stream_peek(struct json_source *source)
-{
-    int c = fgetc(source->source.stream.stream);
-    ungetc(c, source->source.stream.stream);
-    return c;
-}
-
-static void
-init(json_stream *json)
-{
-    json->lineno = 1;
-    json->flags = JSON_FLAG_STREAMING;
-    json->errmsg[0] = '\0';
-    json->ntokens = 0;
-    json->next = 0;
-
-    json->stack = NULL;
-    json->stack_top = -1;
-    json->stack_size = 0;
-
-    json->data.string = NULL;
-    json->data.string_size = 0;
-    json->data.string_fill = 0;
-    json->source.position = 0;
-
-    json->alloc.malloc = malloc;
-    json->alloc.realloc = realloc;
-    json->alloc.free = free;
+    if (json->peek >= -1)
+        return json->peek;
+    return (json->peek = json_io_get(json));
 }
 
 static enum json_type
-is_match(json_stream *json, const char *pattern, enum json_type type)
+is_match(struct json_stream *json, const char *pattern, enum json_type type)
 {
     const char *p;
     for (p = pattern; *p; p++)
-        if (*p != json->source.get(&json->source))
+        if (*p != json_io_get(json))
             return JSON_ERROR;
     return type;
 }
 
 static int
-pushchar(json_stream *json, int c)
+pushchar(struct json_stream *json, int c)
 {
     if (json->data.string_fill == json->data.string_size) {
         size_t size = json->data.string_size * 2;
-        char *buffer = json->alloc.realloc(json->data.string, size);
+        char *buffer = json->realloc(json->data.string,
+                                     size,
+                                     json->alloc_arg);
         if (buffer == NULL) {
             json_error(json, "out of memory");
             return -1;
@@ -147,12 +121,14 @@ pushchar(json_stream *json, int c)
 }
 
 static int
-init_string(json_stream *json)
+init_string(struct json_stream *json)
 {
     json->data.string_fill = 0;
     if (json->data.string == NULL) {
         json->data.string_size = 1024;
-        json->data.string = json->alloc.malloc(json->data.string_size);
+        json->data.string = json->realloc(0,
+                                          json->data.string_size,
+                                          json->alloc_arg);
         if (json->data.string == NULL) {
             json_error(json, "out of memory");
             return -1;
@@ -163,7 +139,7 @@ init_string(json_stream *json)
 }
 
 static int
-encode_utf8(json_stream *json, unsigned long c)
+encode_utf8(struct json_stream *json, unsigned long c)
 {
     if (c < 0x80UL) {
         return pushchar(json, c);
@@ -221,17 +197,17 @@ hexchar(int c)
 }
 
 static long
-read_unicode_cp(json_stream *json)
+read_unicode_cp(struct json_stream *json)
 {
     size_t i;
     long cp = 0;
     int shift = 12;
 
     for (i = 0; i < 4; i++) {
-        int c = json->source.get(&json->source);
+        int c = json_io_get(json);
         int hc;
 
-        if (c == EOF) {
+        if (c == -1) {
             json_error(json, "%s", "unterminated string literal in unicode");
             return -1;
         } else if ((hc = hexchar(c)) == -1) {
@@ -248,7 +224,7 @@ read_unicode_cp(json_stream *json)
 }
 
 static int
-read_unicode(json_stream *json)
+read_unicode(struct json_stream *json)
 {
     long cp, h, l;
 
@@ -264,8 +240,8 @@ read_unicode(json_stream *json)
          */
         h = cp;
 
-        c = json->source.get(&json->source);
-        if (c == EOF) {
+        c = json_io_get(json);
+        if (c == -1) {
             json_error(json, "%s", "unterminated string literal in unicode");
             return -1;
         } else if (c != '\\') {
@@ -274,8 +250,8 @@ read_unicode(json_stream *json)
             return -1;
         }
 
-        c = json->source.get(&json->source);
-        if (c == EOF) {
+        c = json_io_get(json);
+        if (c == -1) {
             json_error(json, "%s", "unterminated string literal in unicode");
             return -1;
         } else if (c != 'u') {
@@ -304,10 +280,10 @@ read_unicode(json_stream *json)
 }
 
 static int
-read_escaped(json_stream *json)
+read_escaped(struct json_stream *json)
 {
-    int c = json->source.get(&json->source);
-    if (c == EOF) {
+    int c = json_io_get(json);
+    if (c == -1) {
         json_error(json, "%s", "unterminated string literal in escape");
         return -1;
     } else if (c == 'u') {
@@ -420,7 +396,7 @@ is_legal_utf8(const unsigned char *bytes, int length)
 }
 
 static int
-read_utf8(json_stream* json, int next_char)
+read_utf8(struct json_stream *json, int next_char)
 {
     int i;
     unsigned char buffer[4];
@@ -433,7 +409,7 @@ read_utf8(json_stream* json, int next_char)
 
     buffer[0] = next_char;
     for (i = 1; i < count; ++i)
-        buffer[i] = json->source.get(&json->source);;
+        buffer[i] = json_io_get(json);
 
     if (!is_legal_utf8(buffer, count)) {
         json_error(json, "%s", "No legal UTF8 found");
@@ -447,13 +423,13 @@ read_utf8(json_stream* json, int next_char)
 }
 
 static enum json_type
-read_string(json_stream *json)
+read_string(struct json_stream *json)
 {
     if (init_string(json) != 0)
         return JSON_ERROR;
     for (;;) {
-        int c = json->source.get(&json->source);
-        if (c == EOF) {
+        int c = json_io_get(json);
+        if (c == -1) {
             json_error(json, "%s", "unterminated string literal");
             return JSON_ERROR;
         } else if (c == '"') {
@@ -487,11 +463,11 @@ is_digit(int c)
 }
 
 static int
-read_digits(json_stream *json)
+read_digits(struct json_stream *json)
 {
     unsigned nread = 0;
-    while (is_digit(json->source.peek(&json->source))) {
-        if (pushchar(json, json->source.get(&json->source)) != 0)
+    while (is_digit(json_io_peek(json))) {
+        if (pushchar(json, json_io_get(json)) != 0)
             return -1;
 
         nread++;
@@ -505,26 +481,26 @@ read_digits(json_stream *json)
 }
 
 static enum json_type
-read_number(json_stream *json, int c)
+read_number(struct json_stream *json, int c)
 {
     if (pushchar(json, c) != 0)
         return JSON_ERROR;
     if (c == '-') {
-        c = json->source.get(&json->source);
+        c = json_io_get(json);
         if (is_digit(c)) {
             return read_number(json, c);
         } else {
             json_error(json, "unexpected byte, '%c'", c);
         }
     } else if (strchr("123456789", c) != NULL) {
-        c = json->source.peek(&json->source);
+        c = json_io_peek(json);
         if (is_digit(c)) {
             if (read_digits(json) != 0)
                 return JSON_ERROR;
         }
     }
     /* Up to decimal or exponent has been read. */
-    c = json->source.peek(&json->source);
+    c = json_io_peek(json);
     if (strchr(".eE", c) == NULL) {
         if (pushchar(json, '\0') != 0)
             return JSON_ERROR;
@@ -532,21 +508,21 @@ read_number(json_stream *json, int c)
             return JSON_NUMBER;
     }
     if (c == '.') {
-        json->source.get(&json->source); /* consume . */
+        json_io_get(json); /* consume . */
         if (pushchar(json, c) != 0)
             return JSON_ERROR;
         if (read_digits(json) != 0)
             return JSON_ERROR;
     }
     /* Check for exponent. */
-    c = json->source.peek(&json->source);
+    c = json_io_peek(json);
     if (c == 'e' || c == 'E') {
-        json->source.get(&json->source); /* consume e/E */
+        json_io_get(json); /* consume e/E */
         if (pushchar(json, c) != 0)
             return JSON_ERROR;
-        c = json->source.peek(&json->source);
+        c = json_io_peek(json);
         if (c == '+' || c == '-') {
-            json->source.get(&json->source); /* consume */
+            json_io_get(json); /* consume */
             if (pushchar(json, c) != 0)
                 return JSON_ERROR;
             if (read_digits(json) != 0)
@@ -581,21 +557,21 @@ json_isspace(int c)
 
 /* Returns the next non-whitespace character in the stream. */
 static int
-next(json_stream *json)
+next(struct json_stream *json)
 {
     int c;
-    while (json_isspace(c = json->source.get(&json->source)))
+    while (json_isspace((c = json_io_get(json))))
         if (c == '\n')
             json->lineno++;
     return c;
 }
 
 static enum json_type
-read_value(json_stream *json, int c)
+read_value(struct json_stream *json, int c)
 {
     json->ntokens++;
     switch (c) {
-        case EOF:
+        case -1:
             json_error(json, "%s", "unexpected end of data");
             return JSON_ERROR;
         case '{':
@@ -631,7 +607,7 @@ read_value(json_stream *json, int c)
 }
 
 enum json_type
-json_peek(json_stream *json)
+json_peek(struct json_stream *json)
 {
     enum json_type next = json_next(json);
     json->next = next;
@@ -639,7 +615,7 @@ json_peek(json_stream *json)
 }
 
 enum json_type
-json_next(json_stream *json)
+json_next(struct json_stream *json)
 {
     int c;
 
@@ -654,13 +630,13 @@ json_next(json_stream *json)
 
     if (json->ntokens > 0 && json->stack_top == (size_t)-1) {
         do {
-            c = json->source.peek(&json->source);
+            c = json_io_peek(json);
             if (json_isspace(c)) {
-                c = json->source.get(&json->source);
+                c = json_io_get(json);
             }
         } while (json_isspace(c));
 
-        if (!(json->flags & JSON_FLAG_STREAMING) && c != EOF) {
+        if (!(json->flags & JSON_FLAG_STREAMING) && c != -1) {
             return JSON_ERROR;
         }
 
@@ -736,7 +712,7 @@ json_next(json_stream *json)
 }
 
 void
-json_reset(json_stream *json)
+json_reset(struct json_stream *json)
 {
     json->stack_top = -1;
     json->ntokens = 0;
@@ -745,7 +721,7 @@ json_reset(json_stream *json)
 }
 
 const char *
-json_get_string(json_stream *json, size_t *length)
+json_get_string(struct json_stream *json, size_t *length)
 {
     if (length != NULL)
         *length = json->data.string_fill;
@@ -756,102 +732,92 @@ json_get_string(json_stream *json, size_t *length)
 }
 
 double
-json_get_number(json_stream *json)
+json_get_number(struct json_stream *json)
 {
     char *p = json->data.string;
     return p == NULL ? 0 : strtod(p, NULL);
 }
 
 const char *
-json_get_error(json_stream *json)
+json_get_error(struct json_stream *json)
 {
     return json->flags & JSON_FLAG_ERROR ? json->errmsg : NULL;
 }
 
-size_t
-json_get_lineno(json_stream *json)
+unsigned long
+json_get_lineno(struct json_stream *json)
 {
     return json->lineno;
 }
 
-size_t
-json_get_position(json_stream *json)
+unsigned long
+json_get_position(struct json_stream *json)
 {
-    return json->source.position;
+    return json->position;
 }
 
 size_t
-json_get_depth(json_stream *json)
+json_get_depth(struct json_stream *json)
 {
     return json->stack_top + 1;
 }
 
-void
-json_open_buffer(json_stream *json, const void *buffer, size_t size)
+static void *
+json_realloc_default(void *buf, size_t len, void *arg)
 {
-    init(json);
-    json->source.get = buffer_get;
-    json->source.peek = buffer_peek;
-    json->source.source.buffer.buffer = buffer;
-    json->source.source.buffer.length = size;
+    (void)arg;
+    return realloc(buf, len);
+}
+
+static void
+json_free_default(void *buf, void *arg)
+{
+    (void)arg;
+    free(buf);
 }
 
 void
-json_open_string(json_stream *json, const char *string)
+json_open(struct json_stream *json, json_fgetc fgetc, void *arg, int flags)
 {
-    json_open_buffer(json, string, strlen(string));
+    json->lineno = 1;
+    json->flags = flags;
+    json->errmsg[0] = 0;
+    json->ntokens = 0;
+    json->next = 0;
+
+    json->stack = NULL;
+    json->stack_top = -1;
+    json->stack_size = 0;
+
+    json->data.string = NULL;
+    json->data.string_size = 0;
+    json->data.string_fill = 0;
+
+    json->free = json_free_default;
+    json->realloc = json_realloc_default;
+
+    json->fgetc = fgetc;
+    json->fgetc_arg = arg;
+    json->position = 0;
+    json->peek = -2;
 }
 
 void
-json_open_stream(json_stream *json, FILE * stream)
+json_set_allocator(struct json_stream *json,
+                   json_realloc realloc,
+                   json_free free,
+                   void *arg)
 {
-    init(json);
-    json->source.get = stream_get;
-    json->source.peek = stream_peek;
-    json->source.source.stream.stream = stream;
-}
-
-static int
-user_get(struct json_source *json)
-{
-    return json->source.user.get(json->source.user.ptr);
-}
-
-static int
-user_peek(struct json_source *json)
-{
-    return json->source.user.peek(json->source.user.ptr);
+    json->realloc = realloc;
+    json->free = free;
+    json->alloc_arg = arg;
 }
 
 void
-json_open_user(json_stream *json, json_user_io get, json_user_io peek, void *user)
+json_close(struct json_stream *json)
 {
-    init(json);
-    json->source.get = user_get;
-    json->source.peek = user_peek;
-    json->source.source.user.ptr = user;
-    json->source.source.user.get = get;
-    json->source.source.user.peek = peek;
-}
-
-void
-json_set_allocator(json_stream *json, json_allocator *a)
-{
-    json->alloc = *a;
-}
-
-void
-json_set_streaming(json_stream *json, int streaming)
-{
-    if (streaming)
-        json->flags |= JSON_FLAG_STREAMING;
-    else
-        json->flags &= ~JSON_FLAG_STREAMING;
-}
-
-void
-json_close(json_stream *json)
-{
-    json->alloc.free(json->stack);
-    json->alloc.free(json->data.string);
+    json->free(json->stack, json->alloc_arg);
+    json->stack = 0;
+    json->free(json->data.string, json->alloc_arg);
+    json->data.string = 0;
 }

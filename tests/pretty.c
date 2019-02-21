@@ -12,10 +12,10 @@ indent(int n)
         putchar(' ');
 }
 
-void pretty(json_stream *json);
+void pretty(struct json_stream *json);
 
 void
-pretty_array(json_stream *json)
+pretty_array(struct json_stream *json)
 {
     int first = 1;
     printf("[\n");
@@ -34,7 +34,7 @@ pretty_array(json_stream *json)
 }
 
 void
-pretty_object(json_stream *json)
+pretty_object(struct json_stream *json)
 {
     int first = 1;
     printf("{\n");
@@ -55,7 +55,7 @@ pretty_object(json_stream *json)
 }
 
 void
-pretty(json_stream *json)
+pretty(struct json_stream *json)
 {
     enum json_type type = json_next(json);
     switch (type) {
@@ -116,25 +116,49 @@ err:
     return -1;
 }
 
+static int
+file_fgetc(void *arg)
+{
+    return fgetc(arg);
+}
+
+struct buffer {
+    const void *buf;
+    size_t len;
+    size_t pos;
+};
+
+static int
+buffer_fgetc(void *arg)
+{
+    const unsigned char *buf;
+    struct buffer *b = arg;
+    if (b->pos == b->len)
+        return -1;
+    buf = b->buf;
+    return buf[b->pos++];
+}
+
 int
 main(int argc, char **argv)
 {
-    json_stream json;
+    struct json_stream json;
     char *jstr = NULL;
 
     if (argc < 2) {
-        json_open_stream(&json, stdin);
-    }
-    else {
-
+        json_open(&json, file_fgetc, stdin, JSON_FLAG_STREAMING);
+    } else {
+        struct buffer buffer;
         if (-1 == read_file(argv[1], &jstr)) {
             free(jstr);
             exit(EXIT_FAILURE);
         }
-        json_open_string(&json, jstr);
+        buffer.buf = jstr;
+        buffer.len = strlen(jstr);
+        buffer.pos = 0;
+        json_open(&json, buffer_fgetc, &buffer, JSON_FLAG_STREAMING);
     }
 
-	json_set_streaming(&json, 0);
     pretty(&json);
     if (json_get_error(&json)) {
         fprintf(stderr, "%s\n", json_get_error(&json));
