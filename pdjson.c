@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <errno.h>
 #include "pdjson.h"
 
 #define JSON_FLAG_ERROR      (1u << 0)
@@ -35,21 +34,10 @@
 
 #define STACK_INC 4
 
-#if defined(_MSC_VER) || defined(__MINGW32__)
-#define strerror_r(err, buf, len) strerror_s(buf, len, err)
-#endif
-
 struct json_stack {
     enum json_type type;
     long count;
 };
-
-static void json_error_s(json_stream *json, int err)
-{
-    char errbuf[1024] = {0};
-    strerror_r(err, errbuf, sizeof(errbuf));
-    json_error(json, "%s", errbuf);
-}
 
 static enum json_type
 push(json_stream *json, enum json_type type)
@@ -61,7 +49,7 @@ push(json_stream *json, enum json_type type)
         size_t size = (json->stack_size + STACK_INC) * sizeof(*json->stack);
         stack = (struct json_stack *)json->alloc.realloc(json->stack, size);
         if (stack == NULL) {
-            json_error_s(json, errno);
+            json_error(json, "%s", "out of memory");
             return JSON_ERROR;
         }
 
@@ -151,7 +139,7 @@ static int pushchar(json_stream *json, int c)
         size_t size = json->data.string_size * 2;
         char *buffer = (char *)json->alloc.realloc(json->data.string, size);
         if (buffer == NULL) {
-            json_error_s(json, errno);
+            json_error(json, "%s", "out of memory");
             return -1;
         } else {
             json->data.string_size = size;
@@ -169,7 +157,7 @@ static int init_string(json_stream *json)
         json->data.string_size = 1024;
         json->data.string = (char *)json->alloc.malloc(json->data.string_size);
         if (json->data.string == NULL) {
-            json_error_s(json, errno);
+            json_error(json, "%s", "out of memory");
             return -1;
         }
     }
