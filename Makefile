@@ -1,6 +1,6 @@
 .POSIX:
 CC     = cc
-CFLAGS = -ansi -pedantic -Wall -Wextra -Wno-missing-field-initializers
+CFLAGS = -ansi -pedantic -Os -Wall -Wextra -Wno-missing-field-initializers
 
 all: tests/pretty tests/stream tests/tests
 
