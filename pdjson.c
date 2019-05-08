@@ -643,8 +643,11 @@ read_value(json_stream *json, int c)
 
 enum json_type json_peek(json_stream *json)
 {
-    enum json_type next = json_next(json);
-    json->next = next;
+    enum json_type next;
+    if (json->next)
+        next = json->next;
+    else
+        next = json->next = json_next(json);
     return next;
 }
 
