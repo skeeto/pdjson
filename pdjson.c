@@ -369,8 +369,10 @@ is_legal_utf8(const unsigned char *bytes, int length)
             /* Everything else falls through when true. */
         case 4:
             if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return 0;
+            /* FALLTHROUGH */
         case 3:
             if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return 0;
+            /* FALLTHROUGH */
         case 2:
             a = (*--srcptr);
             switch (*bytes) {
@@ -389,6 +391,7 @@ is_legal_utf8(const unsigned char *bytes, int length)
                 default:
                     if (a < 0x80 || a > 0xBF) return 0;
             }
+            /* FALLTHROUGH */
         case 1:
             if (*bytes >= 0x80 && *bytes < 0xC2) return 0;
     }
