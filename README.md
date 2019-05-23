@@ -37,17 +37,15 @@ void json_open(struct json_stream *, json_fgetc f, void *arg, int flags);
 void json_close(struct json_stream *);
 ```
 
-After opening a stream, custom allocator callbacks can be specified,
-in case allocations should not come from a system-supplied malloc.
-(When no custom allocator is specified, the system allocator is used.)
+After opening a stream, custom allocator callbacks can be specified, in
+case allocations should not come from a system-supplied malloc. When no
+custom allocator is specified, the system allocator is used. The
+allocator behaves similarly to `realloc()`, but when the requested size
+is zero it must free the allocation.
 
 ```c
-typedef void *(*json_realloc)(void *, size_t, void *ctx);
-typedef void  (*json_free)(void *, void *ctx);
-void json_set_allocator(struct json_stream *,
-                        json_realloc,
-                        json_free,
-                        void *ctx);
+typedef void *(*json_alloc)(void *, size_t, void *ctx);
+void json_set_allocator(struct json_stream *, json_alloc, void *ctx);
 ```
 
 By default only one value is read from the stream. The parser can be

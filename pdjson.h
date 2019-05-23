@@ -12,15 +12,14 @@ enum json_type {
 };
 
 typedef int   (*json_fgetc)(void *);
-typedef void *(*json_realloc)(void *, size_t, void *);
-typedef void  (*json_free)(void *, void *);
+typedef void *(*json_alloc)(void *, size_t, void *);
 
 struct json_stream;
 
 void json_open(struct json_stream *, json_fgetc, void *, int flags);
 void json_close(struct json_stream *);
 
-void json_set_allocator(struct json_stream *, json_realloc, json_free, void *);
+void json_set_allocator(struct json_stream *, json_alloc, void *);
 
 enum json_type json_next(struct json_stream *);
 enum json_type json_peek(struct json_stream *);
@@ -57,8 +56,7 @@ struct json_stream {
     unsigned long position;
     int peek;
 
-    json_realloc realloc;
-    json_free free;
+    json_alloc alloc;
     void *alloc_arg;
 
     char errmsg[128];

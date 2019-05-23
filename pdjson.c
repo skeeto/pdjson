@@ -37,9 +37,9 @@ push(struct json_stream *json, enum json_type type)
     if (json->stack_top >= json->stack_size) {
         struct json_stack *stack;
         size_t size = json->stack_size ? json->stack_size * 2 : 8;
-        stack = json->realloc(json->stack,
-                              size * sizeof(*json->stack),
-                              json->alloc_arg);
+        stack = json->alloc(json->stack,
+                            size * sizeof(*json->stack),
+                            json->alloc_arg);
         if (!stack) {
             json_error(json, "out of memory");
             return JSON_ERROR;
@@ -105,9 +105,9 @@ pushchar(struct json_stream *json, int c)
 {
     if (json->data.string_fill == json->data.string_size) {
         size_t size = json->data.string_size * 2;
-        char *buffer = json->realloc(json->data.string,
-                                     size,
-                                     json->alloc_arg);
+        char *buffer = json->alloc(json->data.string,
+                                   size,
+                                   json->alloc_arg);
         if (buffer == NULL) {
             json_error(json, "out of memory");
             return -1;
@@ -126,9 +126,9 @@ init_string(struct json_stream *json)
     json->data.string_fill = 0;
     if (json->data.string == NULL) {
         json->data.string_size = 1024;
-        json->data.string = json->realloc(0,
-                                          json->data.string_size,
-                                          json->alloc_arg);
+        json->data.string = json->alloc(0,
+                                        json->data.string_size,
+                                        json->alloc_arg);
         if (json->data.string == NULL) {
             json_error(json, "out of memory");
             return -1;
@@ -766,17 +766,15 @@ json_get_depth(struct json_stream *json)
 }
 
 static void *
-json_realloc_default(void *buf, size_t len, void *arg)
+json_alloc_default(void *buf, size_t len, void *arg)
 {
     (void)arg;
-    return realloc(buf, len);
-}
-
-static void
-json_free_default(void *buf, void *arg)
-{
-    (void)arg;
-    free(buf);
+    if (!len) {
+        free(buf);
+        return 0;
+    } else {
+        return realloc(buf, len);
+    }
 }
 
 void
@@ -796,8 +794,7 @@ json_open(struct json_stream *json, json_fgetc fgetc, void *arg, int flags)
     json->data.string_size = 0;
     json->data.string_fill = 0;
 
-    json->free = json_free_default;
-    json->realloc = json_realloc_default;
+    json->alloc = json_alloc_default;
 
     json->fgetc = fgetc;
     json->fgetc_arg = arg;
@@ -806,21 +803,17 @@ json_open(struct json_stream *json, json_fgetc fgetc, void *arg, int flags)
 }
 
 void
-json_set_allocator(struct json_stream *json,
-                   json_realloc realloc,
-                   json_free free,
-                   void *arg)
+json_set_allocator(struct json_stream *json, json_alloc alloc, void *arg)
 {
-    json->realloc = realloc;
-    json->free = free;
+    json->alloc = alloc;
     json->alloc_arg = arg;
 }
 
 void
 json_close(struct json_stream *json)
 {
-    json->free(json->stack, json->alloc_arg);
+    json->alloc(json->stack, 0, json->alloc_arg);
     json->stack = 0;
-    json->free(json->data.string, json->alloc_arg);
+    json->alloc(json->data.string, 0, json->alloc_arg);
     json->data.string = 0;
 }
