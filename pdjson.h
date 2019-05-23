@@ -29,7 +29,7 @@ double json_get_number(struct json_stream *);
 
 unsigned long json_get_lineno(struct json_stream *);
 unsigned long json_get_position(struct json_stream *);
-unsigned long json_get_depth(struct json_stream *);
+size_t json_get_depth(struct json_stream *);
 const char *json_get_error(struct json_stream *);
 
 /* internal */
