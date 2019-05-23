@@ -125,7 +125,7 @@ main(void)
         const char str[] = "  1024\n";
         struct expect seq[] = {
             {JSON_NUMBER, "1024"},
-            {JSON_DONE},
+            {JSON_DONE, 0},
         };
         TEST("number", 0);
     }
@@ -133,8 +133,8 @@ main(void)
     {
         const char str[] = "  true \n";
         struct expect seq[] = {
-            {JSON_TRUE},
-            {JSON_DONE},
+            {JSON_TRUE, 0},
+            {JSON_DONE, 0},
         };
         TEST("true", 0);
     }
@@ -142,8 +142,8 @@ main(void)
     {
         const char str[] = "\nfalse\r\n";
         struct expect seq[] = {
-            {JSON_FALSE},
-            {JSON_DONE},
+            {JSON_FALSE, 0},
+            {JSON_DONE, 0},
         };
         TEST("false", 0);
     }
@@ -151,8 +151,8 @@ main(void)
     {
         const char str[] = "\tnull";
         struct expect seq[] = {
-            {JSON_NULL},
-            {JSON_DONE},
+            {JSON_NULL, 0},
+            {JSON_DONE, 0},
         };
         TEST("null", 0);
     }
@@ -161,7 +161,7 @@ main(void)
         const char str[] = "\"foo\"";
         struct expect seq[] = {
             {JSON_STRING, "foo"},
-            {JSON_DONE},
+            {JSON_DONE, 0},
         };
         TEST("string", 0);
     }
@@ -170,7 +170,7 @@ main(void)
         const char str[] = "\"Tim \\\"The Tool Man\\\" Taylor\"";
         struct expect seq[] = {
             {JSON_STRING, "Tim \"The Tool Man\" Taylor"},
-            {JSON_DONE},
+            {JSON_DONE, 0},
         };
         TEST("string quotes", 0);
     }
@@ -178,11 +178,11 @@ main(void)
     {
         const char str[] = "{\"abc\": -1}";
         struct expect seq[] = {
-            {JSON_OBJECT},
+            {JSON_OBJECT, 0},
             {JSON_STRING, "abc"},
             {JSON_NUMBER, "-1"},
-            {JSON_OBJECT_END},
-            {JSON_DONE},
+            {JSON_OBJECT_END, 0},
+            {JSON_DONE, 0},
         };
         TEST("object", 0);
     }
@@ -190,13 +190,13 @@ main(void)
     {
         const char str[] = "[1, \"two\", true, null]";
         struct expect seq[] = {
-            {JSON_ARRAY},
+            {JSON_ARRAY, 0},
             {JSON_NUMBER, "1"},
             {JSON_STRING, "two"},
-            {JSON_TRUE},
-            {JSON_NULL},
-            {JSON_ARRAY_END},
-            {JSON_DONE},
+            {JSON_TRUE, 0},
+            {JSON_NULL, 0},
+            {JSON_ARRAY_END, 0},
+            {JSON_DONE, 0},
         };
         TEST("array", 0);
     }
@@ -205,14 +205,14 @@ main(void)
         const char str[] = "1 10 100 2002";
         struct expect seq[] = {
             {JSON_NUMBER, "1"},
-            {JSON_DONE},
+            {JSON_DONE, 0},
             {JSON_NUMBER, "10"},
-            {JSON_DONE},
+            {JSON_DONE, 0},
             {JSON_NUMBER, "100"},
-            {JSON_DONE},
+            {JSON_DONE, 0},
             {JSON_NUMBER, "2002"},
-            {JSON_DONE},
-            {JSON_ERROR},
+            {JSON_DONE, 0},
+            {JSON_ERROR, 0},
         };
         TEST("number stream", 1);
     }
@@ -220,21 +220,21 @@ main(void)
     {
         const char str[] = "{\"foo\": [1, 2, 3]}\n[]\n\"name\"";
         struct expect seq[] = {
-            {JSON_OBJECT},
+            {JSON_OBJECT, 0},
             {JSON_STRING, "foo"},
-            {JSON_ARRAY},
+            {JSON_ARRAY, 0},
             {JSON_NUMBER, "1"},
             {JSON_NUMBER, "2"},
             {JSON_NUMBER, "3"},
-            {JSON_ARRAY_END},
-            {JSON_OBJECT_END},
-            {JSON_DONE},
-            {JSON_ARRAY},
-            {JSON_ARRAY_END},
-            {JSON_DONE},
+            {JSON_ARRAY_END, 0},
+            {JSON_OBJECT_END, 0},
+            {JSON_DONE, 0},
+            {JSON_ARRAY, 0},
+            {JSON_ARRAY_END, 0},
+            {JSON_DONE, 0},
             {JSON_STRING, "name"},
-            {JSON_DONE},
-            {JSON_ERROR},
+            {JSON_DONE, 0},
+            {JSON_ERROR, 0},
         };
         TEST("mixed stream", 1);
     }
@@ -242,11 +242,11 @@ main(void)
     {
         const char str[] = "[1, 2, 3";
         struct expect seq[] = {
-            {JSON_ARRAY},
+            {JSON_ARRAY, 0},
             {JSON_NUMBER, "1"},
             {JSON_NUMBER, "2"},
             {JSON_NUMBER, "3"},
-            {JSON_ERROR},
+            {JSON_ERROR, 0},
         };
         TEST("incomplete array", 0);
     }
@@ -255,7 +255,7 @@ main(void)
         const char str[] = "\"\\u0068\\u0065\\u006c\\u006c\\u006F\"";
         struct expect seq[] = {
             {JSON_STRING, "hello"},
-            {JSON_DONE},
+            {JSON_DONE, 0},
         };
         TEST("\\uXXXX", 0);
     }
@@ -264,7 +264,7 @@ main(void)
         /* This surrogate half must precede another half */
         const char str[] = "\"\\uD800\\u0065\"";
         struct expect seq[] = {
-            {JSON_ERROR}
+            {JSON_ERROR, 0}
         };
         TEST("invalid surrogate pair", 0);
     }
@@ -273,7 +273,7 @@ main(void)
         /* This surrogate half cannot be alone */
         const char str[] = "\"\\uDC00\"";
         struct expect seq[] = {
-            {JSON_ERROR}
+            {JSON_ERROR, 0}
         };
         TEST("invalid surrogate half", 0);
     }
@@ -282,7 +282,7 @@ main(void)
         /* Surrogate halves are in the wrong order */
         const char str[] = "\":\\uDc00\\uD800\"";
         struct expect seq[] = {
-            {JSON_ERROR}
+            {JSON_ERROR, 0}
         };
         TEST("surrogate misorder", 0);
     }
@@ -292,7 +292,7 @@ main(void)
         const char str[] = "\":\\uD800\\uDC00\"";
         struct expect seq[] = {
             {JSON_STRING, ":\xf0\x90\x80\x80"}, /* UTF-8 for U+10000 */
-            {JSON_DONE},
+            {JSON_DONE, 0},
         };
         TEST("surrogate pair", 0);
     }
