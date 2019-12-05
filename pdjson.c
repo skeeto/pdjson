@@ -423,6 +423,7 @@ is_legal_utf8(const unsigned char *bytes, int length)
             if (a < 0x80 || a > 0xBF) return 0;
             break;
         }
+        /* FALLTHRU */
     case 1:
         if (*bytes >= 0x80 && *bytes < 0xC2) return 0;
     }
