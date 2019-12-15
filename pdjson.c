@@ -40,7 +40,9 @@
 
 #endif /* _MSC_VER */
 
-#define STACK_INC 4
+#ifndef PDJSON_STACK_INC
+#  define PDJSON_STACK_INC 4
+#endif
 
 struct json_stack {
     enum json_type type;
@@ -54,14 +56,14 @@ push(json_stream *json, enum json_type type)
 
     if (json->stack_top >= json->stack_size) {
         struct json_stack *stack;
-        size_t size = (json->stack_size + STACK_INC) * sizeof(*json->stack);
+        size_t size = (json->stack_size + PDJSON_STACK_INC) * sizeof(*json->stack);
         stack = (struct json_stack *)json->alloc.realloc(json->stack, size);
         if (stack == NULL) {
             json_error(json, "%s", "out of memory");
             return JSON_ERROR;
         }
 
-        json->stack_size += STACK_INC;
+        json->stack_size += PDJSON_STACK_INC;
         json->stack = stack;
     }
 
