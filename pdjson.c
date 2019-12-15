@@ -40,6 +40,7 @@
 
 #endif /* _MSC_VER */
 
+/* See also PDJSON_STACK_MAX below. */
 #ifndef PDJSON_STACK_INC
 #  define PDJSON_STACK_INC 4
 #endif
@@ -53,6 +54,13 @@ static enum json_type
 push(json_stream *json, enum json_type type)
 {
     json->stack_top++;
+
+#ifdef PDJSON_STACK_MAX
+    if (json->stack_top > PDJSON_STACK_MAX) {
+        json_error(json, "%s", "maximum depth of nesting reached");
+        return JSON_ERROR;
+    }
+#endif
 
     if (json->stack_top >= json->stack_size) {
         struct json_stack *stack;
