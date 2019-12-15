@@ -454,7 +454,7 @@ read_utf8(json_stream* json, int next_char)
     int count = utf8_seq_length(next_char);
     if (!count)
     {
-        json_error(json, "%s", "Bad character.");
+        json_error(json, "%s", "bad character");
         return -1;
     }
 
@@ -468,7 +468,7 @@ read_utf8(json_stream* json, int next_char)
 
     if (!is_legal_utf8((unsigned char*) buffer, count))
     {
-        json_error(json, "%s", "No legal UTF8 found");
+        json_error(json, "%s", "no legal UTF-8 found");
         return -1;
     }
 
