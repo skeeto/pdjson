@@ -59,6 +59,7 @@ PDJSON_SYMEXPORT enum json_type json_skip_until(json_stream *json, enum json_typ
 PDJSON_SYMEXPORT size_t json_get_lineno(json_stream *json);
 PDJSON_SYMEXPORT size_t json_get_position(json_stream *json);
 PDJSON_SYMEXPORT size_t json_get_depth(json_stream *json);
+PDJSON_SYMEXPORT enum json_type json_get_context(json_stream *json, size_t *count);
 PDJSON_SYMEXPORT const char *json_get_error(json_stream *json);
 
 /* internal */

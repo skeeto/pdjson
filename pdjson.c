@@ -865,6 +865,26 @@ size_t json_get_depth(json_stream *json)
     return json->stack_top + 1;
 }
 
+/* Return the current parsing context, that is, JSON_OBJECT if we are inside
+   an object, JSON_ARRAY if we are inside an array, and JSON_DONE if we are
+   not yet/anymore in either.
+
+   Additionally, for the first two cases, also return the number of parsing
+   events that have already been observed at this level with json_next/peek().
+   In particular, inside an object, an odd number would indicate that the just
+   observed JSON_STRING event is a property name.
+*/
+enum json_type json_get_context(json_stream *json, size_t *count)
+{
+    if (json->stack_top == (size_t)-1)
+        return JSON_DONE;
+
+    if (count != NULL)
+        *count = json->stack[json->stack_top].count;
+
+    return json->stack[json->stack_top].type;
+}
+
 void json_open_buffer(json_stream *json, const void *buffer, size_t size)
 {
     init(json);
