@@ -145,9 +145,13 @@ static void init(json_stream *json)
 static enum json_type
 is_match(json_stream *json, const char *pattern, enum json_type type)
 {
+    int c;
     for (const char *p = pattern; *p; p++)
-        if (*p != json->source.get(&json->source))
+      if (*p != (c = json->source.get(&json->source)))
+        {
+            json_error(json, "expected '%c' instead of byte '%c'", *p, c);
             return JSON_ERROR;
+        }
     return type;
 }
 
@@ -523,8 +527,9 @@ is_digit(int c)
 static int
 read_digits(json_stream *json)
 {
+    int c;
     unsigned nread = 0;
-    while (is_digit(json->source.peek(&json->source))) {
+    while (is_digit(c = json->source.peek(&json->source))) {
         if (pushchar(json, json->source.get(&json->source)) != 0)
             return -1;
 
@@ -532,6 +537,7 @@ read_digits(json_stream *json)
     }
 
     if (nread == 0) {
+        json_error(json, "expected digit instead of byte '%c'", c);
         return -1;
     }
 
@@ -549,6 +555,7 @@ read_number(json_stream *json, int c)
             return read_number(json, c);
         } else {
             json_error(json, "unexpected byte, '%c'", c);
+            return JSON_ERROR;
         }
     } else if (strchr("123456789", c) != NULL) {
         c = json->source.peek(&json->source);
@@ -692,7 +699,13 @@ enum json_type json_next(json_stream *json)
             }
         } while (json_isspace(c));
 
+        /* TODO: this feels a bit too loose: with the current logic we treat
+           01 as two values which feels wrong. But on the other hand,
+           {...}{...} or [...][...] do not feel unreasonable. Maybe we should
+           require some form of separation in the streaming case (either
+           whitespace or }/])? */
         if (!(json->flags & JSON_FLAG_STREAMING) && c != EOF) {
+            json_error(json, "expected EOF instead of byte '%c'", c);
             return JSON_ERROR;
         }
 
@@ -726,7 +739,8 @@ enum json_type json_next(json_stream *json)
             /* No property value pairs yet. */
             enum json_type value = read_value(json, c);
             if (value != JSON_STRING) {
-                json_error(json, "%s", "expected property name or '}'");
+                if (value != JSON_ERROR)
+                    json_error(json, "%s", "expected property name or '}'");
                 return JSON_ERROR;
             } else {
                 json->stack[json->stack_top].count++;
@@ -742,7 +756,8 @@ enum json_type json_next(json_stream *json)
             } else {
                 enum json_type value = read_value(json, next(json));
                 if (value != JSON_STRING) {
-                    json_error(json, "%s", "expected property name");
+                    if (value != JSON_ERROR)
+                        json_error(json, "%s", "expected property name");
                     return JSON_ERROR;
                 } else {
                     json->stack[json->stack_top].count++;
