@@ -1,8 +1,16 @@
-#define _POSIX_C_SOURCE 200112L
+#ifndef _POSIX_C_SOURCE
+#  define _POSIX_C_SOURCE 200112L
+#elif _POSIX_C_SOURCE < 200112L
+#  error incompatible _POSIX_C_SOURCE level
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include "pdjson.h"
+
+#ifndef PDJSON_H
+#  include "pdjson.h"
+#endif
 
 #define JSON_FLAG_ERROR      (1u << 0)
 #define JSON_FLAG_STREAMING  (1u << 1)
