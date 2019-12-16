@@ -86,7 +86,9 @@ pretty(struct json_stream *json)
         case JSON_ARRAY_END:
             return;
         case JSON_ERROR:
-            fprintf(stderr, "error: %s\n", json_get_error(json));
+            fprintf(stderr, "error: %ld: %s\n",
+                    json_get_lineno(json),
+                    json_get_error(json));
             exit(EXIT_FAILURE);
     }
 }
@@ -160,7 +162,9 @@ main(int argc, char **argv)
 
     pretty(&json);
     if (json_get_error(&json)) {
-        fprintf(stderr, "error: %s\n", json_get_error(&json));
+        fprintf(stderr, "error: %ld: %s\n",
+                json_get_lineno(&json),
+                json_get_error(&json));
         exit(EXIT_FAILURE);
     } else {
         printf("\n");

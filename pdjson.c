@@ -20,12 +20,10 @@ json_error(struct json_stream *json, const char *fmt, ...)
 {
     if (!(json->flags & JSON_FLAG_ERROR)) {
         va_list ap;
-        char *p = json->errmsg;
-        json->flags |= JSON_FLAG_ERROR;
-        p += sprintf(p, "%lu: ", (unsigned long)json->lineno);
         va_start(ap, fmt);
-        vsprintf(p, fmt, ap);
+        vsprintf(json->errmsg, fmt, ap);
         va_end(ap);
+        json->flags |= JSON_FLAG_ERROR;
     }
 }
 
