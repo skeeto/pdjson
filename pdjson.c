@@ -22,8 +22,7 @@
         json->flags |= JSON_FLAG_ERROR;                           \
         _snprintf_s(json->errmsg, sizeof(json->errmsg),           \
                  _TRUNCATE,                                       \
-                 "error: %lu: " format,                           \
-                 (unsigned long) json->lineno,                    \
+                 format,                                          \
                  __VA_ARGS__);                                    \
     }                                                             \
 
@@ -33,8 +32,7 @@
     if (!(json->flags & JSON_FLAG_ERROR)) {                       \
         json->flags |= JSON_FLAG_ERROR;                           \
         snprintf(json->errmsg, sizeof(json->errmsg),              \
-                 "error: %lu: " format,                           \
-                 (unsigned long) json->lineno,                    \
+                 format,                                          \
                  __VA_ARGS__);                                    \
     }                                                             \
 
