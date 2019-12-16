@@ -406,7 +406,7 @@ read_utf8(struct json_stream *json, int next_char)
 
     int count = utf8_seq_length(next_char);
     if (!count) {
-        json_error(json, "%s", "Bad character.");
+        json_error(json, "%s", "not valid UTF-8");
         return -1;
     }
 
@@ -415,7 +415,7 @@ read_utf8(struct json_stream *json, int next_char)
         buffer[i] = json_io_get(json);
 
     if (!is_legal_utf8(buffer, count)) {
-        json_error(json, "%s", "No legal UTF8 found");
+        json_error(json, "%s", "not valid UTF-8");
         return -1;
     }
 
