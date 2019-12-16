@@ -146,12 +146,12 @@ static enum json_type
 is_match(json_stream *json, const char *pattern, enum json_type type)
 {
     int c;
-    for (const char *p = pattern; *p; p++)
-      if (*p != (c = json->source.get(&json->source)))
-        {
+    for (const char *p = pattern; *p; p++) {
+        if (*p != (c = json->source.get(&json->source))) {
             json_error(json, "expected '%c' instead of byte '%c'", *p, c);
             return JSON_ERROR;
         }
+    }
     return type;
 }
 
