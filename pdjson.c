@@ -22,7 +22,7 @@ json_error(struct json_stream *json, const char *fmt, ...)
         va_list ap;
         char *p = json->errmsg;
         json->flags |= JSON_FLAG_ERROR;
-        p += sprintf(p, "error: %lu: ", (unsigned long)json->lineno);
+        p += sprintf(p, "%lu: ", (unsigned long)json->lineno);
         va_start(ap, fmt);
         vsprintf(p, fmt, ap);
         va_end(ap);
