@@ -213,10 +213,9 @@ read_unicode_cp(struct json_stream *json)
             return -1;
         }
 
-        cp += hc * (1 << shift);
+        cp += hc * (1L << shift);
         shift -= 4;
     }
-
 
     return cp;
 }
