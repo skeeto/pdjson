@@ -83,7 +83,7 @@ static enum json_type
 pop(json_stream *json, int c, enum json_type expected)
 {
     if (json->stack == NULL || json->stack[json->stack_top].type != expected) {
-        json_error(json, "unexpected byte, '%c'", c);
+        json_error(json, "unexpected byte '%c'", c);
         return JSON_ERROR;
     }
     json->stack_top--;
@@ -206,7 +206,7 @@ static int encode_utf8(json_stream *json, unsigned long c)
                 (pushchar(json, (c >> 6  & 0x3F) | 0x80) == 0) &&
                 (pushchar(json, (c >> 0  & 0x3F) | 0x80) == 0));
     } else {
-        json_error(json, "can't encode UTF-8 for %06lx", c);
+        json_error(json, "unable to encode %06lx as UTF-8", c);
         return -1;
     }
 }
@@ -252,10 +252,10 @@ read_unicode_cp(json_stream *json)
         int hc;
 
         if (c == EOF) {
-            json_error(json, "%s", "unterminated string literal in unicode");
+            json_error(json, "%s", "unterminated string literal in Unicode");
             return -1;
         } else if ((hc = hexchar(c)) == -1) {
-            json_error(json, "bad escape unicode byte, '%c'", c);
+            json_error(json, "invalid escape Unicode byte '%c'", c);
             return -1;
         }
 
@@ -283,20 +283,20 @@ static int read_unicode(json_stream *json)
 
         int c = json->source.get(&json->source);
         if (c == EOF) {
-            json_error(json, "%s", "unterminated string literal in unicode");
+            json_error(json, "%s", "unterminated string literal in Unicode");
             return -1;
         } else if (c != '\\') {
-            json_error(json, "invalid continuation for surrogate pair: '%c', "
+            json_error(json, "invalid continuation for surrogate pair '%c', "
                              "expected '\\'", c);
             return -1;
         }
 
         c = json->source.get(&json->source);
         if (c == EOF) {
-            json_error(json, "%s", "unterminated string literal in unicode");
+            json_error(json, "%s", "unterminated string literal in Unicode");
             return -1;
         } else if (c != 'u') {
-            json_error(json, "invalid continuation for surrogate pair: '%c', "
+            json_error(json, "invalid continuation for surrogate pair '%c', "
                              "expected 'u'", c);
             return -1;
         }
@@ -306,7 +306,7 @@ static int read_unicode(json_stream *json)
         }
 
         if (l < 0xdc00 || l > 0xdfff) {
-            json_error(json, "invalid surrogate pair continuation \\u%04lx out "
+            json_error(json, "surrogate pair continuation \\u%04lx out "
                              "of range (dc00-dfff)", l);
             return -1;
         }
@@ -348,7 +348,7 @@ read_escaped(json_stream *json)
             }
             break;
         default:
-            json_error(json, "bad escaped byte, '%c'", c);
+            json_error(json, "invalid escaped byte '%c'", c);
             return -1;
         }
     }
@@ -456,7 +456,7 @@ read_utf8(json_stream* json, int next_char)
     int count = utf8_seq_length(next_char);
     if (!count)
     {
-        json_error(json, "%s", "bad character");
+        json_error(json, "%s", "invalid UTF-8 character");
         return -1;
     }
 
@@ -470,7 +470,7 @@ read_utf8(json_stream* json, int next_char)
 
     if (!is_legal_utf8((unsigned char*) buffer, count))
     {
-        json_error(json, "%s", "no legal UTF-8 found");
+        json_error(json, "%s", "invalid UTF-8 text");
         return -1;
     }
 
@@ -552,7 +552,7 @@ read_number(json_stream *json, int c)
         if (is_digit(c)) {
             return read_number(json, c);
         } else {
-            json_error(json, "unexpected byte, '%c'", c);
+            json_error(json, "unexpected byte '%c' in number", c);
             return JSON_ERROR;
         }
     } else if (strchr("123456789", c) != NULL) {
@@ -594,7 +594,7 @@ read_number(json_stream *json, int c)
             if (read_digits(json) != 0)
                 return JSON_ERROR;
         } else {
-            json_error(json, "unexpected byte in number, '%c'", c);
+            json_error(json, "unexpected byte '%c' in number", c);
             return JSON_ERROR;
         }
     }
@@ -634,7 +634,7 @@ read_value(json_stream *json, int c)
     json->ntokens++;
     switch (c) {
     case EOF:
-        json_error(json, "%s", "unexpected end of data");
+        json_error(json, "%s", "unexpected end of text");
         return JSON_ERROR;
     case '{':
         return push(json, JSON_OBJECT);
@@ -663,7 +663,7 @@ read_value(json_stream *json, int c)
             return JSON_ERROR;
         return read_number(json, c);
     default:
-        json_error(json, "unexpected byte, '%c'", c);
+        json_error(json, "unexpected byte '%c' in value", c);
         return JSON_ERROR;
     }
 }
@@ -703,7 +703,7 @@ enum json_type json_next(json_stream *json)
            require some form of separation in the streaming case (either
            whitespace or }/])? */
         if (!(json->flags & JSON_FLAG_STREAMING) && c != EOF) {
-            json_error(json, "expected EOF instead of byte '%c'", c);
+            json_error(json, "expected end of text instead of byte '%c'", c);
             return JSON_ERROR;
         }
 
@@ -725,7 +725,7 @@ enum json_type json_next(json_stream *json)
         } else if (c == ']') {
             return pop(json, c, JSON_ARRAY);
         } else {
-            json_error(json, "unexpected byte, '%c'", c);
+            json_error(json, "unexpected byte '%c'", c);
             return JSON_ERROR;
         }
     } else if (json->stack[json->stack_top].type == JSON_OBJECT) {
@@ -734,20 +734,20 @@ enum json_type json_next(json_stream *json)
                 return pop(json, c, JSON_OBJECT);
             }
 
-            /* No property value pairs yet. */
+            /* No member name/value pairs yet. */
             enum json_type value = read_value(json, c);
             if (value != JSON_STRING) {
                 if (value != JSON_ERROR)
-                    json_error(json, "%s", "expected property name or '}'");
+                    json_error(json, "%s", "expected member name or '}'");
                 return JSON_ERROR;
             } else {
                 json->stack[json->stack_top].count++;
                 return value;
             }
         } else if ((json->stack[json->stack_top].count % 2) == 0) {
-            /* Expecting comma followed by property name. */
+            /* Expecting comma followed by member name. */
             if (c != ',' && c != '}') {
-                json_error(json, "%s", "expected ',' or '}'");
+                json_error(json, "%s", "expected ',' or '}' after member value");
                 return JSON_ERROR;
             } else if (c == '}') {
                 return pop(json, c, JSON_OBJECT);
@@ -755,7 +755,7 @@ enum json_type json_next(json_stream *json)
                 enum json_type value = read_value(json, next(json));
                 if (value != JSON_STRING) {
                     if (value != JSON_ERROR)
-                        json_error(json, "%s", "expected property name");
+                        json_error(json, "%s", "expected member name");
                     return JSON_ERROR;
                 } else {
                     json->stack[json->stack_top].count++;
@@ -765,7 +765,7 @@ enum json_type json_next(json_stream *json)
         } else if ((json->stack[json->stack_top].count % 2) == 1) {
             /* Expecting colon followed by value. */
             if (c != ':') {
-                json_error(json, "%s", "expected ':' after property name");
+                json_error(json, "%s", "expected ':' after member name");
                 return JSON_ERROR;
             } else {
                 json->stack[json->stack_top].count++;
@@ -870,7 +870,7 @@ size_t json_get_depth(json_stream *json)
    Additionally, for the first two cases, also return the number of parsing
    events that have already been observed at this level with json_next/peek().
    In particular, inside an object, an odd number would indicate that the just
-   observed JSON_STRING event is a property name.
+   observed JSON_STRING event is a member name.
 */
 enum json_type json_get_context(json_stream *json, size_t *count)
 {
