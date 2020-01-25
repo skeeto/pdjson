@@ -89,7 +89,7 @@ unsigned long json_get_position(json_stream *);
 ```
 
 Outside of errors, a `JSON_OBJECT` event will always be followed by
-zero or more pairs of `JSON_STRING` (property name) events and their
+zero or more pairs of `JSON_STRING` (member name) events and their
 associated value events. That is, the stream of events will always be
 logical and consistent.
 
