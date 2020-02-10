@@ -710,8 +710,12 @@ enum json_type json_next(json_stream *json)
         return JSON_DONE;
     }
     int c = next(json);
-    if (json->stack_top == (size_t)-1)
+    if (json->stack_top == (size_t)-1) {
+        if (c == EOF && (json->flags & JSON_FLAG_STREAMING))
+            return JSON_DONE;
+
         return read_value(json, c);
+    }
     if (json->stack[json->stack_top].type == JSON_ARRAY) {
         if (json->stack[json->stack_top].count == 0) {
             if (c == ']') {

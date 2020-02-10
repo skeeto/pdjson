@@ -25,13 +25,10 @@ main(void)
     json_open_stream(s, stdin);
     json_set_streaming(s, 1);
     puts("struct expect seq[] = {");
-    for (;;) {
+    for (bool first = true;;) {
         enum json_type type = json_next(s);
         const char *value = 0;
         switch (type) {
-            case JSON_DONE:
-                json_reset(s);
-                break;
             case JSON_NULL:
                 value = "null";
                 break;
@@ -52,6 +49,7 @@ main(void)
             case JSON_OBJECT_END:
             case JSON_ARRAY_END:
             case JSON_ERROR:
+            case JSON_DONE:
                 break;
         }
         if (value)
@@ -60,6 +58,13 @@ main(void)
             printf("    {JSON_%s},\n", json_typename[type]);
         if (type == JSON_ERROR)
             break;
+        if (type == JSON_DONE) {
+            if (first)
+                break;
+            json_reset(s);
+            first = true;
+        } else
+            first = false;
     }
     puts("};");
     json_close(s);

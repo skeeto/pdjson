@@ -102,3 +102,7 @@ Outside of errors, a `JSON_OBJECT` event will always be followed by
 zero or more pairs of `JSON_STRING` (member name) events and their
 associated value events. That is, the stream of events will always be
 logical and consistent.
+
+In the streaming mode the end of the input is indicated by returning a second
+`JSON_DONE` event. Note also that in this mode an input consisting of zero
+JSON values is valid and is represented by a single `JSON_DONE` event.

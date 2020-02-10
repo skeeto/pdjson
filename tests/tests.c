@@ -189,7 +189,7 @@ main(void)
             {JSON_DONE},
             {JSON_NUMBER, "2002"},
             {JSON_DONE},
-            {JSON_ERROR},
+            {JSON_DONE},
         };
         TEST("number stream", true);
     }
@@ -211,9 +211,17 @@ main(void)
             {JSON_DONE},
             {JSON_STRING, "name"},
             {JSON_DONE},
-            {JSON_ERROR},
+            {JSON_DONE},
         };
         TEST("mixed stream", true);
+    }
+
+    {
+        const char str[] = " \n";
+        struct expect seq[] = {
+            {JSON_DONE},
+        };
+        TEST("empty stream", true);
     }
 
     {
