@@ -62,6 +62,10 @@ PDJSON_SYMEXPORT size_t json_get_depth(json_stream *json);
 PDJSON_SYMEXPORT enum json_type json_get_context(json_stream *json, size_t *count);
 PDJSON_SYMEXPORT const char *json_get_error(json_stream *json);
 
+PDJSON_SYMEXPORT int json_source_get (json_stream *json);
+PDJSON_SYMEXPORT int json_source_peek (json_stream *json);
+PDJSON_SYMEXPORT bool json_isspace(int c);
+
 /* internal */
 
 struct json_source {

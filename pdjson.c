@@ -604,7 +604,7 @@ read_number(json_stream *json, int c)
         return JSON_NUMBER;
 }
 
-static int
+bool
 json_isspace(int c)
 {
     switch (c) {
@@ -612,10 +612,10 @@ json_isspace(int c)
     case 0x0a:
     case 0x0d:
     case 0x20:
-        return 1;
+        return true;
     }
 
-    return 0;
+    return false;
 }
 
 /* Returns the next non-whitespace character in the stream. */
@@ -688,23 +688,26 @@ enum json_type json_next(json_stream *json)
         return next;
     }
     if (json->ntokens > 0 && json->stack_top == (size_t)-1) {
-        int c;
 
-        do {
-            c = json->source.peek(&json->source);
-            if (json_isspace(c)) {
-                c = json->source.get(&json->source);
+        /* In the streaming mode leave any trailing whitespaces in the stream.
+         * This allows the user to validate any desired separation between
+         * values (such as newlines) using json_source_get/peek() with any
+         * remaining whitespaces ignored as leading when we parse the next
+         * value. */
+        if (!(json->flags & JSON_FLAG_STREAMING)) {
+            int c;
+
+            do {
+                c = json->source.peek(&json->source);
+                if (json_isspace(c)) {
+                    c = json->source.get(&json->source);
+                }
+            } while (json_isspace(c));
+
+            if (c != EOF) {
+                json_error(json, "expected end of text instead of byte '%c'", c);
+                return JSON_ERROR;
             }
-        } while (json_isspace(c));
-
-        /* TODO: this feels a bit too loose: with the current logic we treat
-           01 as two values which feels wrong. But on the other hand,
-           {...}{...} or [...][...] do not feel unreasonable. Maybe we should
-           require some form of separation in the streaming case (either
-           whitespace or }/])? */
-        if (!(json->flags & JSON_FLAG_STREAMING) && c != EOF) {
-            json_error(json, "expected end of text instead of byte '%c'", c);
-            return JSON_ERROR;
         }
 
         return JSON_DONE;
@@ -885,6 +888,19 @@ enum json_type json_get_context(json_stream *json, size_t *count)
         *count = json->stack[json->stack_top].count;
 
     return json->stack[json->stack_top].type;
+}
+
+int json_source_get (json_stream *json)
+{
+    int c = json->source.get(&json->source);
+    if (c == '\n')
+        json->lineno++;
+    return c;
+}
+
+int json_source_peek (json_stream *json)
+{
+    return json->source.peek(&json->source);
 }
 
 void json_open_buffer(json_stream *json, const void *buffer, size_t size)

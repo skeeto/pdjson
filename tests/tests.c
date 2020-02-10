@@ -20,14 +20,17 @@ struct expect {
 
 #define countof(a) (sizeof(a) / sizeof(*a))
 
-#define TEST(name, stream) \
+#define TEST_IMPL(name, stream, sep) \
     do { \
-        int r = test(name, stream, seq, countof(seq), str, sizeof(str) - 1); \
+        int r = test(name, stream, sep, seq, countof(seq), str, sizeof(str) - 1); \
         if (r) \
             count_pass++; \
         else \
             count_fail++; \
     } while (0)
+
+#define TEST(name)             TEST_IMPL(name, false, '\0')
+#define TEST_STREAM(name, sep) TEST_IMPL(name, true, sep)
 
 const char json_typename[][16] = {
     [JSON_ERROR]      = "ERROR",
@@ -52,6 +55,7 @@ has_value(enum json_type type)
 static int
 test(const char *name,
      int stream,
+     char sep,
      struct expect *seq,
      size_t seqlen,
      const char *buf,
@@ -74,8 +78,19 @@ test(const char *name,
             success = 0;
         else if (seq[i].str && !!strcmp(expect_str, actual_str))
             success = 0;
-        else if (stream && actual == JSON_DONE)
+        else if (stream && actual == JSON_DONE) {
+            if (sep != '\0') {
+                int c = '\0';
+                while (json_isspace(c = json_source_peek(json))) {
+                    json_source_get(json);
+                    if (c == sep)
+                        break;
+                }
+                if (c != sep && c != EOF)
+                    success = 0;
+            }
             json_reset(json);
+        }
     }
 
     if (success) {
@@ -104,7 +119,7 @@ main(void)
             {JSON_NUMBER, "1024"},
             {JSON_DONE},
         };
-        TEST("number", false);
+        TEST("number");
     }
 
     {
@@ -113,7 +128,7 @@ main(void)
             {JSON_TRUE},
             {JSON_DONE},
         };
-        TEST("true", false);
+        TEST("true");
     }
 
     {
@@ -122,7 +137,7 @@ main(void)
             {JSON_FALSE},
             {JSON_DONE},
         };
-        TEST("false", false);
+        TEST("false");
     }
 
     {
@@ -131,7 +146,7 @@ main(void)
             {JSON_NULL},
             {JSON_DONE},
         };
-        TEST("null", false);
+        TEST("null");
     }
 
     {
@@ -140,7 +155,7 @@ main(void)
             {JSON_STRING, "foo"},
             {JSON_DONE},
         };
-        TEST("string", false);
+        TEST("string");
     }
 
     {
@@ -149,7 +164,7 @@ main(void)
             {JSON_STRING, "Tim \"The Tool Man\" Taylor"},
             {JSON_DONE},
         };
-        TEST("string quotes", false);
+        TEST("string quotes");
     }
 
     {
@@ -161,7 +176,7 @@ main(void)
             {JSON_OBJECT_END},
             {JSON_DONE},
         };
-        TEST("object", false);
+        TEST("object");
     }
 
     {
@@ -175,7 +190,7 @@ main(void)
             {JSON_ARRAY_END},
             {JSON_DONE},
         };
-        TEST("array", false);
+        TEST("array");
     }
 
     {
@@ -191,7 +206,7 @@ main(void)
             {JSON_DONE},
             {JSON_DONE},
         };
-        TEST("number stream", true);
+        TEST_STREAM("number stream", '\0');
     }
 
     {
@@ -213,7 +228,7 @@ main(void)
             {JSON_DONE},
             {JSON_DONE},
         };
-        TEST("mixed stream", true);
+        TEST_STREAM("mixed stream", '\0');
     }
 
     {
@@ -221,7 +236,23 @@ main(void)
         struct expect seq[] = {
             {JSON_DONE},
         };
-        TEST("empty stream", true);
+        TEST_STREAM("empty stream", '\0');
+    }
+
+    {
+        const char str[] = "1\n10 \n100 \n 2002";
+        struct expect seq[] = {
+            {JSON_NUMBER, "1"},
+            {JSON_DONE},
+            {JSON_NUMBER, "10"},
+            {JSON_DONE},
+            {JSON_NUMBER, "100"},
+            {JSON_DONE},
+            {JSON_NUMBER, "2002"},
+            {JSON_DONE},
+            {JSON_DONE},
+        };
+        TEST_STREAM("stream separation", '\n');
     }
 
     {
@@ -233,7 +264,7 @@ main(void)
             {JSON_NUMBER, "3"},
             {JSON_ERROR},
         };
-        TEST("incomplete array", false);
+        TEST("incomplete array");
     }
 
     {
@@ -242,7 +273,7 @@ main(void)
             {JSON_STRING, "hello"},
             {JSON_DONE},
         };
-        TEST("\\uXXXX", false);
+        TEST("\\uXXXX");
     }
 
     {
@@ -251,7 +282,7 @@ main(void)
         struct expect seq[] = {
             {JSON_ERROR}
         };
-        TEST("invalid surrogate pair", false);
+        TEST("invalid surrogate pair");
     }
 
     {
@@ -260,7 +291,7 @@ main(void)
         struct expect seq[] = {
             {JSON_ERROR}
         };
-        TEST("invalid surrogate half", false);
+        TEST("invalid surrogate half");
     }
 
     {
@@ -269,7 +300,7 @@ main(void)
         struct expect seq[] = {
             {JSON_ERROR}
         };
-        TEST("surrogate misorder", false);
+        TEST("surrogate misorder");
     }
 
     {
@@ -279,7 +310,7 @@ main(void)
             {JSON_STRING, ":\xf0\x90\x80\x80"}, /* UTF-8 for U+10000 */
             {JSON_DONE},
         };
-        TEST("surrogate pair", false);
+        TEST("surrogate pair");
     }
 
     printf("%d pass, %d fail\n", count_pass, count_fail);

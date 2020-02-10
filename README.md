@@ -106,3 +106,35 @@ logical and consistent.
 In the streaming mode the end of the input is indicated by returning a second
 `JSON_DONE` event. Note also that in this mode an input consisting of zero
 JSON values is valid and is represented by a single `JSON_DONE` event.
+
+JSON values in the stream can be separated by zero or more JSON whitespaces.
+Stricter or alternative separation can be implemented by reading and analyzing
+characters between values using the following functions.
+
+```c
+int json_source_get (json_stream *json);
+int json_source_peek (json_stream *json);
+bool json_isspace(int c);
+```
+
+As an example, the following code fragment makes sure values are separated by
+at least one newline.
+
+```c
+enum json_type e = json_next(json);
+
+if (e == JSON_DONE) {
+    int c = '\0';
+    while (json_isspace(c = json_source_peek(json))) {
+        json_source_get(json);
+        if (c == '\n')
+            break;
+    }
+
+    if (c != '\n' && c != EOF) {
+        /* error */
+    }
+
+    json_reset(json);
+}
+```
