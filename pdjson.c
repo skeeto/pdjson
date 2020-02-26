@@ -890,7 +890,7 @@ enum json_type json_get_context(json_stream *json, size_t *count)
     return json->stack[json->stack_top].type;
 }
 
-int json_source_get (json_stream *json)
+int json_source_get(json_stream *json)
 {
     int c = json->source.get(&json->source);
     if (c == '\n')
@@ -898,7 +898,7 @@ int json_source_get (json_stream *json)
     return c;
 }
 
-int json_source_peek (json_stream *json)
+int json_source_peek(json_stream *json)
 {
     return json->source.peek(&json->source);
 }
