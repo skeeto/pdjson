@@ -101,14 +101,17 @@ static int buffer_peek(struct json_source *source)
 static int buffer_get(struct json_source *source)
 {
     int c = source->peek(source);
-    source->position++;
+    if (c != EOF)
+        source->position++;
     return c;
 }
 
 static int stream_get(struct json_source *source)
 {
-    source->position++;
-    return fgetc(source->source.stream.stream);
+    int c = fgetc(source->source.stream.stream);
+    if (c != EOF)
+        source->position++;
+    return c;
 }
 
 static int stream_peek(struct json_source *source)
@@ -927,7 +930,10 @@ void json_open_stream(json_stream *json, FILE * stream)
 
 static int user_get(struct json_source *json)
 {
-    return json->source.user.get(json->source.user.ptr);
+    int c = json->source.user.get(json->source.user.ptr);
+    if (c != EOF)
+        json->position++;
+    return c;
 }
 
 static int user_peek(struct json_source *json)
