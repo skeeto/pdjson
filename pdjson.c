@@ -900,7 +900,7 @@ size_t json_get_position(json_stream *json)
 size_t json_get_column(json_stream *json)
 {
     return json->colno == 0
-               ? json->source.position - json->linepos - json->lineadj
+               ? json->source.position == 0 ? 1 : json->source.position - json->linepos - json->lineadj
                : json->colno;
 }
 
