@@ -5,6 +5,12 @@
 #   define PDJSON_SYMEXPORT
 #endif
 
+#ifndef PDJSON_WITHOUT_FLOAT
+typedef float json_number;
+#else
+typedef long json_number;
+#endif
+
 #ifndef EOF
 #  define EOF (-1)
 #endif
@@ -38,7 +44,7 @@ PDJSON_SYMEXPORT enum json_type json_next(json_stream *json);
 PDJSON_SYMEXPORT enum json_type json_peek(json_stream *json);
 PDJSON_SYMEXPORT void json_reset(json_stream *json);
 PDJSON_SYMEXPORT const char *json_get_string(json_stream *json, size_t *length);
-PDJSON_SYMEXPORT double json_get_number(json_stream *json);
+PDJSON_SYMEXPORT json_number json_get_number(json_stream *json);
 
 PDJSON_SYMEXPORT enum json_type json_skip(json_stream *json);
 PDJSON_SYMEXPORT enum json_type json_skip_until(json_stream *json, enum json_type type);

@@ -831,10 +831,14 @@ const char *json_get_string(json_stream *json, size_t *length)
         return json->data.string;
 }
 
-double json_get_number(json_stream *json)
+json_number json_get_number(json_stream *json)
 {
     char *p = json->data.string;
+#ifndef PDJSON_WITHOUT_FLOAT
     return p == NULL ? 0 : strtod(p, NULL);
+#else
+    return p == NULL ? 0 : strtol(p, NULL, 10);
+#endif
 }
 
 const char *json_get_error(json_stream *json)
