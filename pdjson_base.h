@@ -21,6 +21,11 @@ enum json_type {
     JSON_STRING, JSON_NUMBER, JSON_TRUE, JSON_FALSE, JSON_NULL
 };
 
+struct json_stack {
+    enum json_type type;
+    long count;
+};
+
 struct json_allocator {
     void *(*malloc)(size_t);
     void *(*realloc)(void *, size_t);
@@ -38,6 +43,8 @@ PDJSON_SYMEXPORT void json_open_user(json_stream *json, json_user_io get, json_u
 PDJSON_SYMEXPORT void json_close(json_stream *json);
 
 PDJSON_SYMEXPORT void json_set_allocator(json_stream *json, json_allocator *a);
+PDJSON_SYMEXPORT void json_set_static_memory(json_stream *json, struct json_stack *stack,
+					     size_t stack_size, char *string_buffer, size_t string_size);
 PDJSON_SYMEXPORT void json_set_streaming(json_stream *json, bool mode);
 
 PDJSON_SYMEXPORT enum json_type json_next(json_stream *json);

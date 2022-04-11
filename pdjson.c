@@ -43,11 +43,6 @@
 #  define PDJSON_STACK_INC 4
 #endif
 
-struct json_stack {
-    enum json_type type;
-    long count;
-};
-
 static enum json_type
 push(json_stream *json, enum json_type type)
 {
@@ -61,9 +56,10 @@ push(json_stream *json, enum json_type type)
 #endif
 
     if (json->stack_top >= json->stack_size) {
-        struct json_stack *stack;
+        struct json_stack *stack = NULL;
         size_t size = (json->stack_size + PDJSON_STACK_INC) * sizeof(*json->stack);
-        stack = (struct json_stack *)json->alloc.realloc(json->stack, size);
+        if (json->alloc.realloc)
+            stack = (struct json_stack *)json->alloc.realloc(json->stack, size);
         if (stack == NULL) {
             json_error(json, "%s", "out of memory");
             return JSON_ERROR;
@@ -161,12 +157,13 @@ static int init_string(json_stream *json)
 {
     json->data.string_fill = 0;
     if (json->data.string == NULL) {
-        json->data.string_size = 1024;
-        json->data.string = (char *)json->alloc.malloc(json->data.string_size);
+        if (json->alloc.malloc)
+            json->data.string = (char *)json->alloc.malloc(json->data.string_size);
         if (json->data.string == NULL) {
             json_error(json, "%s", "out of memory");
             return -1;
         }
+        json->data.string_size = 1024;
     }
     json->data.string[0] = '\0';
     return 0;
@@ -934,6 +931,19 @@ void json_set_allocator(json_stream *json, json_allocator *a)
     json->alloc = *a;
 }
 
+void json_set_static_memory(json_stream *json, struct json_stack *stack, size_t stack_size,
+                            char *string_buffer, size_t string_size)
+{
+    json->stack = stack;
+    json->stack_size = stack_size;
+    json->data.string = string_buffer;
+    json->data.string_size = string_size;
+
+    json->alloc.malloc = NULL;
+    json->alloc.realloc = NULL;
+    json->alloc.free = NULL;
+}
+
 void json_set_streaming(json_stream *json, bool streaming)
 {
     if (streaming)
@@ -944,6 +954,8 @@ void json_set_streaming(json_stream *json, bool streaming)
 
 void json_close(json_stream *json)
 {
-    json->alloc.free(json->stack);
-    json->alloc.free(json->data.string);
+    if (json->alloc.free) {
+        json->alloc.free(json->stack);
+        json->alloc.free(json->data.string);
+    }
 }
