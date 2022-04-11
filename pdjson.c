@@ -43,11 +43,6 @@
 #  define PDJSON_STACK_INC 4
 #endif
 
-struct json_stack {
-    enum json_type type;
-    long count;
-};
-
 static enum json_type
 push(json_stream *json, enum json_type type)
 {
@@ -61,9 +56,10 @@ push(json_stream *json, enum json_type type)
 #endif
 
     if (json->stack_top >= json->stack_size) {
-        struct json_stack *stack;
+        struct json_stack *stack = NULL;
         size_t size = (json->stack_size + PDJSON_STACK_INC) * sizeof(*json->stack);
-        stack = (struct json_stack *)json->alloc.realloc(json->stack, size);
+        if (json->alloc.realloc)
+            stack = (struct json_stack *)json->alloc.realloc(json->stack, size);
         if (stack == NULL) {
             json_error(json, "%s", "out of memory");
             return JSON_ERROR;
@@ -102,19 +98,6 @@ static int buffer_get(struct json_source *source)
 {
     int c = source->peek(source);
     source->position++;
-    return c;
-}
-
-static int stream_get(struct json_source *source)
-{
-    source->position++;
-    return fgetc(source->source.stream.stream);
-}
-
-static int stream_peek(struct json_source *source)
-{
-    int c = fgetc(source->source.stream.stream);
-    ungetc(c, source->source.stream.stream);
     return c;
 }
 
@@ -174,12 +157,13 @@ static int init_string(json_stream *json)
 {
     json->data.string_fill = 0;
     if (json->data.string == NULL) {
-        json->data.string_size = 1024;
-        json->data.string = (char *)json->alloc.malloc(json->data.string_size);
+        if (json->alloc.malloc)
+            json->data.string = (char *)json->alloc.malloc(json->data.string_size);
         if (json->data.string == NULL) {
             json_error(json, "%s", "out of memory");
             return -1;
         }
+        json->data.string_size = 1024;
     }
     json->data.string[0] = '\0';
     return 0;
@@ -844,10 +828,14 @@ const char *json_get_string(json_stream *json, size_t *length)
         return json->data.string;
 }
 
-double json_get_number(json_stream *json)
+json_number json_get_number(json_stream *json)
 {
     char *p = json->data.string;
+#ifndef PDJSON_WITHOUT_FLOAT
     return p == NULL ? 0 : strtod(p, NULL);
+#else
+    return p == NULL ? 0 : strtol(p, NULL, 10);
+#endif
 }
 
 const char *json_get_error(json_stream *json)
@@ -917,13 +905,6 @@ void json_open_string(json_stream *json, const char *string)
     json_open_buffer(json, string, strlen(string));
 }
 
-void json_open_stream(json_stream *json, FILE * stream)
-{
-    init(json);
-    json->source.get = stream_get;
-    json->source.peek = stream_peek;
-    json->source.source.stream.stream = stream;
-}
 
 static int user_get(struct json_source *json)
 {
@@ -950,6 +931,19 @@ void json_set_allocator(json_stream *json, json_allocator *a)
     json->alloc = *a;
 }
 
+void json_set_static_memory(json_stream *json, struct json_stack *stack, size_t stack_size,
+                            char *string_buffer, size_t string_size)
+{
+    json->stack = stack;
+    json->stack_size = stack_size;
+    json->data.string = string_buffer;
+    json->data.string_size = string_size;
+
+    json->alloc.malloc = NULL;
+    json->alloc.realloc = NULL;
+    json->alloc.free = NULL;
+}
+
 void json_set_streaming(json_stream *json, bool streaming)
 {
     if (streaming)
@@ -960,6 +954,8 @@ void json_set_streaming(json_stream *json, bool streaming)
 
 void json_close(json_stream *json)
 {
-    json->alloc.free(json->stack);
-    json->alloc.free(json->data.string);
+    if (json->alloc.free) {
+        json->alloc.free(json->stack);
+        json->alloc.free(json->data.string);
+    }
 }
