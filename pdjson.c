@@ -105,19 +105,6 @@ static int buffer_get(struct json_source *source)
     return c;
 }
 
-static int stream_get(struct json_source *source)
-{
-    source->position++;
-    return fgetc(source->source.stream.stream);
-}
-
-static int stream_peek(struct json_source *source)
-{
-    int c = fgetc(source->source.stream.stream);
-    ungetc(c, source->source.stream.stream);
-    return c;
-}
-
 static void init(json_stream *json)
 {
     json->lineno = 1;
@@ -917,13 +904,6 @@ void json_open_string(json_stream *json, const char *string)
     json_open_buffer(json, string, strlen(string));
 }
 
-void json_open_stream(json_stream *json, FILE * stream)
-{
-    init(json);
-    json->source.get = stream_get;
-    json->source.peek = stream_peek;
-    json->source.source.stream.stream = stream;
-}
 
 static int user_get(struct json_source *json)
 {
