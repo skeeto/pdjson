@@ -472,11 +472,14 @@ read_utf8(json_stream* json, int next_char)
     int i;
     for (i = 1; i < count; ++i)
     {
-        if ((buffer[i] = json->source.get(&json->source)) != EOF)
-            json->lineadj++;
+        if ((next_char = json->source.get(&json->source)) == EOF)
+            break;
+
+        buffer[i] = next_char;
+        json->lineadj++;
     }
 
-    if (!is_legal_utf8((unsigned char*) buffer, count))
+    if (i != count || !is_legal_utf8((unsigned char*) buffer, count))
     {
         json_error(json, "%s", "invalid UTF-8 text");
         return -1;
