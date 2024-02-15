@@ -79,6 +79,7 @@ push(json_stream *json, enum json_type type)
     return type;
 }
 
+/* Note: c is assumed not to be EOF. */
 static enum json_type
 pop(json_stream *json, int c, enum json_type expected)
 {
@@ -153,7 +154,11 @@ is_match(json_stream *json, const char *pattern, enum json_type type)
     int c;
     for (const char *p = pattern; *p; p++) {
         if (*p != (c = json->source.get(&json->source))) {
-            json_error(json, "expected '%c' instead of byte '%c'", *p, c);
+            if (c != EOF) {
+                json_error(json, "expected '%c' instead of byte '%c'", *p, c);
+            } else {
+                json_error(json, "expected '%c' instead of end of text", *p);
+            }
             return JSON_ERROR;
         }
     }
@@ -546,7 +551,11 @@ read_digits(json_stream *json)
     }
 
     if (nread == 0) {
-        json_error(json, "expected digit instead of byte '%c'", c);
+        if (c != EOF) {
+            json_error(json, "expected digit instead of byte '%c'", c);
+        } else {
+            json_error(json, "%s", "expected digit instead of end of text");
+        }
         return -1;
     }
 
@@ -563,7 +572,11 @@ read_number(json_stream *json, int c)
         if (is_digit(c)) {
             return read_number(json, c);
         } else {
-            json_error(json, "unexpected byte '%c' in number", c);
+            if (c != EOF) {
+                json_error(json, "unexpected byte '%c' in number", c);
+            } else {
+                json_error(json, "%s", "unexpected end of text in number");
+            }
             return JSON_ERROR;
         }
     } else if (strchr("123456789", c) != NULL) {
@@ -606,7 +619,11 @@ read_number(json_stream *json, int c)
                 return JSON_ERROR;
         } else {
             json->source.get(&json->source); // consume (for column)
-            json_error(json, "unexpected byte '%c' in number", c);
+            if (c != EOF) {
+                json_error(json, "unexpected byte '%c' in number", c);
+            } else {
+                json_error(json, "%s", "unexpected end of text in number");
+            }
             return JSON_ERROR;
         }
     }
@@ -767,7 +784,11 @@ enum json_type json_next(json_stream *json)
         } else if (c == ']') {
             return pop(json, c, JSON_ARRAY);
         } else {
-            json_error(json, "unexpected byte '%c'", c);
+            if (c != EOF) {
+                json_error(json, "unexpected byte '%c'", c);
+            } else {
+                json_error(json, "%s", "unexpected end of text");
+            }
             return JSON_ERROR;
         }
     } else if (json->stack[json->stack_top].type == JSON_OBJECT) {
