@@ -25,8 +25,9 @@ main(void)
     json_open_stream(s, stdin);
     json_set_streaming(s, 1);
     puts("struct expect seq[] = {");
+    enum json_type type;
     for (bool first = true;;) {
-        enum json_type type = json_next(s);
+        type = json_next(s);
         const char *value = 0;
         switch (type) {
             case JSON_NULL:
@@ -67,5 +68,7 @@ main(void)
             first = false;
     }
     puts("};");
+    if (type == JSON_ERROR)
+      fprintf(stderr, "error: %s\n", json_get_error(s));
     json_close(s);
 }
