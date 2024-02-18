@@ -58,6 +58,7 @@ PDJSON_SYMEXPORT enum json_type json_skip_until(json_stream *json, enum json_typ
 
 PDJSON_SYMEXPORT size_t json_get_lineno(json_stream *json);
 PDJSON_SYMEXPORT size_t json_get_position(json_stream *json);
+PDJSON_SYMEXPORT size_t json_get_column(json_stream *json);
 PDJSON_SYMEXPORT size_t json_get_depth(json_stream *json);
 PDJSON_SYMEXPORT enum json_type json_get_context(json_stream *json, size_t *count);
 PDJSON_SYMEXPORT const char *json_get_error(json_stream *json);
@@ -90,6 +91,35 @@ struct json_source {
 
 struct json_stream {
     size_t lineno;
+
+    /* While counting lines is straightforward, columns are tricky because we
+     * have to count codepoints, not bytes. We could have peppered the code
+     * with increments in all the relevant places but that seems inelegant.
+     * So instead we calculate the column dynamically, based on the current
+     * position.
+     *
+     * Specifically, we will remember the position at the beginning of each
+     * line (linepos) and, assuming only the ASCII characters on the line, the
+     * column will be the difference between the current position and linepos.
+     * Of course there could also be multi-byte UTF-8 sequences which we will
+     * handle by keeping an adjustment (lineadj) -- the number of continuation
+     * bytes encountered on this line so far. Finally, for json_source_get()
+     * we also have to keep the number of remaining continuation bytes in the
+     * current multi-byte UTF-8 sequence (linecon).
+     *
+     * This is not the end of the story, however: with only the just described
+     * approach we will always end up with the column of the latest character
+     * read which is not what we want when returning potentially multi-
+     * character value events (string, number, etc); in these cases we want to
+     * return the column of the first character (note that if the value itself
+     * is invalid and we are returning JSON_ERROR, we still want the current
+     * column). So to handle this we will cache the start column (colno) for
+     * such events.
+     */
+    size_t linepos; /* Position at the beginning of the current line. */
+    size_t lineadj; /* Adjustment for multi-byte UTF-8 sequences. */
+    size_t linecon; /* Number of remaining UTF-8 continuation bytes. */
+    size_t colno;   /* Start column for value events or 0. */
 
     struct json_stack *stack;
     size_t stack_top;

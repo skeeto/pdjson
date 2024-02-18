@@ -79,6 +79,7 @@ push(json_stream *json, enum json_type type)
     return type;
 }
 
+/* Note: c is assumed not to be EOF. */
 static enum json_type
 pop(json_stream *json, int c, enum json_type expected)
 {
@@ -101,14 +102,17 @@ static int buffer_peek(struct json_source *source)
 static int buffer_get(struct json_source *source)
 {
     int c = source->peek(source);
-    source->position++;
+    if (c != EOF)
+        source->position++;
     return c;
 }
 
 static int stream_get(struct json_source *source)
 {
-    source->position++;
-    return fgetc(source->source.stream.stream);
+    int c = fgetc(source->source.stream.stream);
+    if (c != EOF)
+        source->position++;
+    return c;
 }
 
 static int stream_peek(struct json_source *source)
@@ -121,6 +125,10 @@ static int stream_peek(struct json_source *source)
 static void init(json_stream *json)
 {
     json->lineno = 1;
+    json->linepos = 0;
+    json->lineadj = 0;
+    json->linecon = 0;
+    json->colno = 0;
     json->flags = JSON_FLAG_STREAMING;
     json->errmsg[0] = '\0';
     json->ntokens = 0;
@@ -146,7 +154,11 @@ is_match(json_stream *json, const char *pattern, enum json_type type)
     int c;
     for (const char *p = pattern; *p; p++) {
         if (*p != (c = json->source.get(&json->source))) {
-            json_error(json, "expected '%c' instead of byte '%c'", *p, c);
+            if (c != EOF) {
+                json_error(json, "expected '%c' instead of byte '%c'", *p, c);
+            } else {
+                json_error(json, "expected '%c' instead of end of text", *p);
+            }
             return JSON_ERROR;
         }
     }
@@ -465,10 +477,14 @@ read_utf8(json_stream* json, int next_char)
     int i;
     for (i = 1; i < count; ++i)
     {
-        buffer[i] = json->source.get(&json->source);;
+        if ((next_char = json->source.get(&json->source)) == EOF)
+            break;
+
+        buffer[i] = next_char;
+        json->lineadj++;
     }
 
-    if (!is_legal_utf8((unsigned char*) buffer, count))
+    if (i != count || !is_legal_utf8((unsigned char*) buffer, count))
     {
         json_error(json, "%s", "invalid UTF-8 text");
         return -1;
@@ -535,7 +551,11 @@ read_digits(json_stream *json)
     }
 
     if (nread == 0) {
-        json_error(json, "expected digit instead of byte '%c'", c);
+        if (c != EOF) {
+            json_error(json, "expected digit instead of byte '%c'", c);
+        } else {
+            json_error(json, "%s", "expected digit instead of end of text");
+        }
         return -1;
     }
 
@@ -552,7 +572,11 @@ read_number(json_stream *json, int c)
         if (is_digit(c)) {
             return read_number(json, c);
         } else {
-            json_error(json, "unexpected byte '%c' in number", c);
+            if (c != EOF) {
+                json_error(json, "unexpected byte '%c' in number", c);
+            } else {
+                json_error(json, "%s", "unexpected end of text in number");
+            }
             return JSON_ERROR;
         }
     } else if (strchr("123456789", c) != NULL) {
@@ -594,7 +618,12 @@ read_number(json_stream *json, int c)
             if (read_digits(json) != 0)
                 return JSON_ERROR;
         } else {
-            json_error(json, "unexpected byte '%c' in number", c);
+            json->source.get(&json->source); // consume (for column)
+            if (c != EOF) {
+                json_error(json, "unexpected byte '%c' in number", c);
+            } else {
+                json_error(json, "%s", "unexpected end of text in number");
+            }
             return JSON_ERROR;
         }
     }
@@ -618,36 +647,59 @@ json_isspace(int c)
     return false;
 }
 
-/* Returns the next non-whitespace character in the stream. */
+static void newline(json_stream *json)
+{
+    json->lineno++;
+    json->linepos = json->source.position;
+    json->lineadj = 0;
+    json->linecon = 0;
+}
+
+/* Returns the next non-whitespace character in the stream.
+ *
+ * Note that this is the only function (besides user-facing json_source_get())
+ * that needs to worry about newline housekeeping.
+ */
 static int next(json_stream *json)
 {
    int c;
    while (json_isspace(c = json->source.get(&json->source)))
        if (c == '\n')
-           json->lineno++;
+           newline(json);
    return c;
 }
 
 static enum json_type
 read_value(json_stream *json, int c)
 {
+    enum json_type type;
+    size_t colno = json_get_column(json);
+
     json->ntokens++;
+
     switch (c) {
     case EOF:
         json_error(json, "%s", "unexpected end of text");
-        return JSON_ERROR;
+        type = JSON_ERROR;
+        break;
     case '{':
-        return push(json, JSON_OBJECT);
+        type = push(json, JSON_OBJECT);
+        break;
     case '[':
-        return push(json, JSON_ARRAY);
+        type = push(json, JSON_ARRAY);
+        break;
     case '"':
-        return read_string(json);
+        type = read_string(json);
+        break;
     case 'n':
-        return is_match(json, "ull", JSON_NULL);
+        type = is_match(json, "ull", JSON_NULL);
+        break;
     case 'f':
-        return is_match(json, "alse", JSON_FALSE);
+        type = is_match(json, "alse", JSON_FALSE);
+        break;
     case 't':
-        return is_match(json, "rue", JSON_TRUE);
+        type = is_match(json, "rue", JSON_TRUE);
+        break;
     case '0':
     case '1':
     case '2':
@@ -659,13 +711,18 @@ read_value(json_stream *json, int c)
     case '8':
     case '9':
     case '-':
-        if (init_string(json) != 0)
-            return JSON_ERROR;
-        return read_number(json, c);
+        type = init_string(json) == 0 ? read_number(json, c) : JSON_ERROR;
+        break;
     default:
+        type = JSON_ERROR;
         json_error(json, "unexpected byte '%c' in value", c);
-        return JSON_ERROR;
+        break;
     }
+
+    if (type != JSON_ERROR)
+        json->colno = colno;
+
+    return type;
 }
 
 enum json_type json_peek(json_stream *json)
@@ -687,6 +744,9 @@ enum json_type json_next(json_stream *json)
         json->next = (enum json_type)0;
         return next;
     }
+
+    json->colno = 0;
+
     if (json->ntokens > 0 && json->stack_top == (size_t)-1) {
 
         /* In the streaming mode leave any trailing whitespaces in the stream.
@@ -695,15 +755,7 @@ enum json_type json_next(json_stream *json)
          * remaining whitespaces ignored as leading when we parse the next
          * value. */
         if (!(json->flags & JSON_FLAG_STREAMING)) {
-            int c;
-
-            do {
-                c = json->source.peek(&json->source);
-                if (json_isspace(c)) {
-                    c = json->source.get(&json->source);
-                }
-            } while (json_isspace(c));
-
+            int c = next(json);
             if (c != EOF) {
                 json_error(json, "expected end of text instead of byte '%c'", c);
                 return JSON_ERROR;
@@ -732,7 +784,11 @@ enum json_type json_next(json_stream *json)
         } else if (c == ']') {
             return pop(json, c, JSON_ARRAY);
         } else {
-            json_error(json, "unexpected byte '%c'", c);
+            if (c != EOF) {
+                json_error(json, "unexpected byte '%c'", c);
+            } else {
+                json_error(json, "%s", "unexpected end of text");
+            }
             return JSON_ERROR;
         }
     } else if (json->stack[json->stack_top].type == JSON_OBJECT) {
@@ -865,6 +921,13 @@ size_t json_get_position(json_stream *json)
     return json->source.position;
 }
 
+size_t json_get_column(json_stream *json)
+{
+    return json->colno == 0
+               ? json->source.position == 0 ? 1 : json->source.position - json->linepos - json->lineadj
+               : json->colno;
+}
+
 size_t json_get_depth(json_stream *json)
 {
     return json->stack_top + 1;
@@ -892,9 +955,22 @@ enum json_type json_get_context(json_stream *json, size_t *count)
 
 int json_source_get(json_stream *json)
 {
+    /* If the caller reads a multi-byte UTF-8 sequence, we expect them to read
+     * it in its entirety. We also assume that any invalid bytes within such a
+     * sequence belong to the same column (as opposed to starting a new column
+     * or some such). */
+
     int c = json->source.get(&json->source);
-    if (c == '\n')
-        json->lineno++;
+    if (json->linecon > 0) {
+        /* Expecting a continuation byte within a multi-byte UTF-8 sequence. */
+        json->linecon--;
+        if (c != EOF)
+            json->lineadj++;
+    } else if (c == '\n')
+        newline(json);
+    else if (c >= 0xC2 && c <= 0xF4) /* First in multi-byte UTF-8 sequence. */
+        json->linecon = utf8_seq_length(c) - 1;
+
     return c;
 }
 
@@ -927,7 +1003,10 @@ void json_open_stream(json_stream *json, FILE * stream)
 
 static int user_get(struct json_source *json)
 {
-    return json->source.user.get(json->source.user.ptr);
+    int c = json->source.user.get(json->source.user.ptr);
+    if (c != EOF)
+        json->position++;
+    return c;
 }
 
 static int user_peek(struct json_source *json)
