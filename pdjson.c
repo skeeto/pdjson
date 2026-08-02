@@ -24,6 +24,7 @@
                  _TRUNCATE,                                       \
                  format,                                          \
                  __VA_ARGS__);                                    \
+        terminate(json);                                          \
     }                                                             \
 
 #else
@@ -34,9 +35,21 @@
         snprintf(json->errmsg, sizeof(json->errmsg),              \
                  format,                                          \
                  __VA_ARGS__);                                    \
+        terminate(json);                                          \
     }                                                             \
 
 #endif /* _MSC_VER */
+
+/* Terminate a token that was abandoned part way through, so that the
+   accessors see only bytes the parser actually wrote. Tokens that complete
+   normally push a terminator of their own. Called for every error since
+   pushchar() always reserves room for this byte.
+ */
+static void terminate(json_stream *json)
+{
+    if (json->data.string != NULL)
+        json->data.string[json->data.string_fill] = '\0';
+}
 
 /* See also PDJSON_STACK_MAX below. */
 #ifndef PDJSON_STACK_INC
@@ -166,7 +179,9 @@ is_match(json_stream *json, const char *pattern, enum json_type type)
 
 static int pushchar(json_stream *json, int c)
 {
-    if (json->data.string_fill == json->data.string_size) {
+    /* Keep one byte in reserve so that terminate() always has somewhere
+       to put its terminator. */
+    if (json->data.string_fill + 1 == json->data.string_size) {
         size_t size = json->data.string_size * 2;
         char *buffer = (char *)json->alloc.realloc(json->data.string, size);
         if (buffer == NULL) {

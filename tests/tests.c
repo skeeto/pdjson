@@ -79,6 +79,17 @@ budget_realloc(void *ptr, size_t size)
     return realloc(ptr, size);
 }
 
+/* An allocator that hands out blocks full of non-zero bytes, so that
+   reading uninitialized memory has a visible, repeatable result. */
+static void *
+dirty_malloc(size_t size)
+{
+    void *ptr = malloc(size);
+    if (ptr != NULL)
+        memset(ptr, '9', size);
+    return ptr;
+}
+
 static int
 has_value(enum json_type type)
 {
@@ -388,6 +399,32 @@ main(void)
         CHECK("full stack, context", json_get_context(json, &count) == JSON_ARRAY);
         /* The enclosing array counted the element it was about to read */
         CHECK("full stack, count", count == 1);
+        json_close(json);
+    }
+
+    {
+        /* A token that failed part way is still terminated, so that the
+           accessors cannot run past the bytes the parser wrote */
+        const char str[] = "-";
+        json_stream json[1];
+        json_allocator alloc = {dirty_malloc, realloc, free};
+        json_open_buffer(json, str, sizeof(str) - 1);
+        json_set_allocator(json, &alloc);
+        CHECK("partial number, error", json_next(json) == JSON_ERROR);
+        CHECK("partial number, string", !strcmp(json_get_string(json, 0), "-"));
+        CHECK("partial number, number", json_get_number(json) == 0);
+        json_close(json);
+    }
+
+    {
+        const char str[] = "\"12";
+        json_stream json[1];
+        json_allocator alloc = {dirty_malloc, realloc, free};
+        json_open_buffer(json, str, sizeof(str) - 1);
+        json_set_allocator(json, &alloc);
+        CHECK("partial string, error", json_next(json) == JSON_ERROR);
+        CHECK("partial string, string", !strcmp(json_get_string(json, 0), "12"));
+        CHECK("partial string, number", json_get_number(json) == 12);
         json_close(json);
     }
 
