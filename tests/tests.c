@@ -32,6 +32,18 @@ struct expect {
 #define TEST(name)             TEST_IMPL(name, false, '\0')
 #define TEST_STREAM(name, sep) TEST_IMPL(name, true, sep)
 
+/* For checks that don't fit the event sequence model above. */
+#define CHECK(name, cond) \
+    do { \
+        if (cond) { \
+            printf(C_GREEN("PASS") " %s\n", name); \
+            count_pass++; \
+        } else { \
+            printf(C_RED("FAIL") " %s\n", name); \
+            count_fail++; \
+        } \
+    } while (0)
+
 const char json_typename[][16] = {
     [JSON_ERROR]      = "ERROR",
     [JSON_DONE]       = "DONE",
@@ -311,6 +323,17 @@ main(void)
             {JSON_DONE},
         };
         TEST("surrogate pair");
+    }
+
+    {
+        /* Byte 0xFF must not be mistaken for end of input */
+        static const char str[] = {(char)0xFF, '"'};
+        json_stream json[1];
+        json_open_buffer(json, str, sizeof(str));
+        CHECK("0xFF is not EOF", json_source_get(json) == 0xFF);
+        CHECK("0xFF advances position", json_get_position(json) == 1);
+        CHECK("0xFF does not stall input", json_source_get(json) == '"');
+        json_close(json);
     }
 
     printf("%d pass, %d fail\n", count_pass, count_fail);

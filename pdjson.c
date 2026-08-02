@@ -94,7 +94,7 @@ pop(json_stream *json, int c, enum json_type expected)
 static int buffer_peek(struct json_source *source)
 {
     if (source->position < source->source.buffer.length)
-        return source->source.buffer.buffer[source->position];
+        return (unsigned char)source->source.buffer.buffer[source->position];
     else
         return EOF;
 }
