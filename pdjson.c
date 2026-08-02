@@ -706,6 +706,21 @@ read_value(json_stream *json, int c)
     }
 }
 
+/* Read an array element, or an object member value, counting it against
+   the enclosing container only once it has actually been produced. Note
+   that read_value() may push, so the container is remembered by index
+   rather than by stack_top.
+ */
+static enum json_type
+read_element(json_stream *json, int c)
+{
+    size_t top = json->stack_top;
+    enum json_type value = read_value(json, c);
+    if (value != JSON_ERROR)
+        json->stack[top].count++;
+    return value;
+}
+
 enum json_type json_peek(json_stream *json)
 {
     enum json_type next;
@@ -762,11 +777,9 @@ enum json_type json_next(json_stream *json)
             if (c == ']') {
                 return pop(json, c, JSON_ARRAY);
             }
-            json->stack[json->stack_top].count++;
-            return read_value(json, c);
+            return read_element(json, c);
         } else if (c == ',') {
-            json->stack[json->stack_top].count++;
-            return read_value(json, next(json));
+            return read_element(json, next(json));
         } else if (c == ']') {
             return pop(json, c, JSON_ARRAY);
         } else {
@@ -817,8 +830,7 @@ enum json_type json_next(json_stream *json)
                 json_error(json, "%s", "expected ':' after member name");
                 return JSON_ERROR;
             } else {
-                json->stack[json->stack_top].count++;
-                return read_value(json, next(json));
+                return read_element(json, next(json));
             }
         }
     }

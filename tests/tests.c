@@ -397,8 +397,7 @@ main(void)
         CHECK("full stack, error", json_next(json) == JSON_ERROR);
         CHECK("full stack, depth", json_get_depth(json) == 4);
         CHECK("full stack, context", json_get_context(json, &count) == JSON_ARRAY);
-        /* The enclosing array counted the element it was about to read */
-        CHECK("full stack, count", count == 1);
+        CHECK("full stack, count", count == 0);
         json_close(json);
     }
 
@@ -425,6 +424,40 @@ main(void)
         CHECK("partial string, error", json_next(json) == JSON_ERROR);
         CHECK("partial string, string", !strcmp(json_get_string(json, 0), "12"));
         CHECK("partial string, number", json_get_number(json) == 12);
+        json_close(json);
+    }
+
+    {
+        /* A value that failed to parse was never observed as an event,
+           so it must not be counted against its container */
+        const char str[] = "[1, x]";
+        json_stream json[1];
+        enum json_type type;
+        size_t count = (size_t)-1;
+        json_open_buffer(json, str, sizeof(str) - 1);
+        json_set_streaming(json, 0);
+        do
+            type = json_next(json);
+        while (type != JSON_ERROR && type != JSON_DONE);
+        CHECK("bad element, context", json_get_context(json, &count) == JSON_ARRAY);
+        CHECK("bad element, count", count == 1);
+        json_close(json);
+    }
+
+    {
+        /* Same, and an odd count still means the last JSON_STRING
+           observed was a member name */
+        const char str[] = "{\"a\": x}";
+        json_stream json[1];
+        enum json_type type;
+        size_t count = (size_t)-1;
+        json_open_buffer(json, str, sizeof(str) - 1);
+        json_set_streaming(json, 0);
+        do
+            type = json_next(json);
+        while (type != JSON_ERROR && type != JSON_DONE);
+        CHECK("bad member, context", json_get_context(json, &count) == JSON_OBJECT);
+        CHECK("bad member, count", count == 1);
         json_close(json);
     }
 
