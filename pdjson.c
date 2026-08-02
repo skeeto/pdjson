@@ -51,16 +51,18 @@ struct json_stack {
 static enum json_type
 push(json_stream *json, enum json_type type)
 {
-    json->stack_top++;
+    /* Do not commit to the new depth until the push cannot fail, or else
+       stack_top would point at a slot that was never allocated. */
+    size_t top = json->stack_top + 1;
 
 #ifdef PDJSON_STACK_MAX
-    if (json->stack_top > PDJSON_STACK_MAX) {
+    if (top > PDJSON_STACK_MAX) {
         json_error(json, "%s", "maximum depth of nesting reached");
         return JSON_ERROR;
     }
 #endif
 
-    if (json->stack_top >= json->stack_size) {
+    if (top >= json->stack_size) {
         struct json_stack *stack;
         size_t size = (json->stack_size + PDJSON_STACK_INC) * sizeof(*json->stack);
         stack = (struct json_stack *)json->alloc.realloc(json->stack, size);
@@ -73,8 +75,9 @@ push(json_stream *json, enum json_type type)
         json->stack = stack;
     }
 
-    json->stack[json->stack_top].type = type;
-    json->stack[json->stack_top].count = 0;
+    json->stack_top = top;
+    json->stack[top].type = type;
+    json->stack[top].count = 0;
 
     return type;
 }

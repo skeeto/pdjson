@@ -58,6 +58,27 @@ const char json_typename[][16] = {
     [JSON_NULL]       = "NULL",
 };
 
+/* An allocator that fails once it has handed out budget allocations. */
+static long budget;
+
+static void *
+budget_malloc(size_t size)
+{
+    if (budget == 0)
+        return NULL;
+    budget--;
+    return malloc(size);
+}
+
+static void *
+budget_realloc(void *ptr, size_t size)
+{
+    if (budget == 0)
+        return NULL;
+    budget--;
+    return realloc(ptr, size);
+}
+
 static int
 has_value(enum json_type type)
 {
@@ -333,6 +354,40 @@ main(void)
         CHECK("0xFF is not EOF", json_source_get(json) == 0xFF);
         CHECK("0xFF advances position", json_get_position(json) == 1);
         CHECK("0xFF does not stall input", json_source_get(json) == '"');
+        json_close(json);
+    }
+
+    {
+        /* A push that cannot allocate must not enter the container */
+        const char str[] = "[1]";
+        json_stream json[1];
+        json_allocator alloc = {budget_malloc, budget_realloc, free};
+        budget = 0;
+        json_open_buffer(json, str, sizeof(str) - 1);
+        json_set_allocator(json, &alloc);
+        CHECK("no stack, error", json_next(json) == JSON_ERROR);
+        CHECK("no stack, depth", json_get_depth(json) == 0);
+        CHECK("no stack, context", json_get_context(json, 0) == JSON_DONE);
+        json_close(json);
+    }
+
+    {
+        /* Same, but with the first block of PDJSON_STACK_INC (4) in hand,
+           so that the failed push lands just past the allocation */
+        const char str[] = "[[[[[1]]]]]";
+        json_stream json[1];
+        json_allocator alloc = {budget_malloc, budget_realloc, free};
+        size_t count = (size_t)-1;
+        budget = 1;
+        json_open_buffer(json, str, sizeof(str) - 1);
+        json_set_allocator(json, &alloc);
+        for (int i = 0; i < 4; i++)
+            json_next(json);
+        CHECK("full stack, error", json_next(json) == JSON_ERROR);
+        CHECK("full stack, depth", json_get_depth(json) == 4);
+        CHECK("full stack, context", json_get_context(json, &count) == JSON_ARRAY);
+        /* The enclosing array counted the element it was about to read */
+        CHECK("full stack, count", count == 1);
         json_close(json);
     }
 
