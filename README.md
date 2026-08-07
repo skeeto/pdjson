@@ -41,12 +41,16 @@ void json_close(json_stream *json);
 After opening a stream, custom allocator callbacks can be specified,
 in case allocations should not come from a system-supplied malloc.
 (When no custom allocator is specified, the system allocator is used.)
+The `malloc`, `realloc` and `free` functions have the same function 
+signatures as their standard library counterparts, except for the 
+addition of a user context pointer as the final argument.
 
 ```c
 struct json_allocator {
-    void *(*malloc)(size_t);
-    void *(*realloc)(void *, size_t);
-    void (*free)(void *);
+    void *(*malloc)(size_t, void *);
+    void *(*realloc)(void *, size_t, void *);
+    void (*free)(void *, void *);
+    void *user_context;
 };
 
 

@@ -28,9 +28,10 @@ enum json_type {
 };
 
 struct json_allocator {
-    void *(*malloc)(size_t);
-    void *(*realloc)(void *, size_t);
-    void (*free)(void *);
+    void *(*malloc)(size_t, void *);
+    void *(*realloc)(void *, size_t, void *);
+    void (*free)(void *, void *);
+    void *user_context;
 };
 
 typedef int (*json_user_io)(void *user);
