@@ -1,5 +1,7 @@
 # Public Domain JSON Parser for C
 
+***SUPERSEDED BY [libjson5](https://github.com/boris-kolpackov/libpdjson5)***
+
 A public domain JSON parser focused on correctness, ANSI C99
 compliance, full Unicode (UTF-8) support, minimal memory footprint,
 and a simple API. As a streaming API, arbitrary large JSON could be
